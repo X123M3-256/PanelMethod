@@ -26,26 +26,36 @@ section_t grid;
 double* source_strengths;
 double* doublet_strengths;
 
+typedef struct
+{
+mesh_t* mesh;
+double* source_strengths;
+double* doublet_strengths;
+}plot_data_t;
+
+plot_data_t plot_data;
+
 double scalar_plot_func(vector3_t point,void* data)
 {
 return 1.0-vector3_dot(point,point);
 }
 
-void vector_plot_func(int num_points,vector3_t* points,void* data,vector3_t* output)
+void vector_plot_func(int num_points,vector3_t* points,void* closure,vector3_t* output)
 {
+plot_data_t* data=(plot_data_t*)closure;
 panel_local_basis_t basis;
 	for(int j=0;j<num_points;j++)
 	{
 	output[j]=vector3(1,0,0);
 	}
-	for(int i=0;i<mesh.num_panels;i++)
+	for(int i=0;i<data->mesh->num_panels;i++)
 	{
-	mesh_get_panel_local_basis(&mesh,i,&basis);
+	mesh_get_panel_local_basis(data->mesh,i,&basis);
 		for(int j=0;j<num_points;j++)
 		{
 		vector3_t source,doublet;
 		mesh_get_panel_velocity_influence(&basis,points[j],&source,&doublet);
-		output[j]=vector3_add(output[j],vector3_add(vector3_scale(source,source_strengths[i]),vector3_scale(doublet,doublet_strengths[i])));
+		output[j]=vector3_add(output[j],vector3_add(vector3_scale(source,data->source_strengths[i]),vector3_scale(doublet,data->doublet_strengths[i])));
 		}
 	}
 }
@@ -131,6 +141,7 @@ free(back_output);
 return;
 }
 */
+
 void on_realize (GtkGLArea *area)
 {
 gtk_gl_area_make_current (area);
@@ -171,12 +182,11 @@ mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,panel_velocit
 
 mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
 
-section_init(&grid,vector3(0,0,0),vector3(0,1,0),4.0,4.0);
-section_draw_grid(&grid);
-section_update_texture(&grid);
-section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,4.0);
-section_draw_vector_field_with_scalar(&section,vector_plot_func,scalar_plot_func,NULL);
-section_update_texture(&section);
+plot_data.mesh=&mesh;
+plot_data.source_strengths=source_strengths;
+plot_data.doublet_strengths=doublet_strengths;
+section_init(&grid,vector3(0,0,0),vector3(0,1,0),4.0,4.0,0.25,SECTION_SHOW_GRID,NULL,NULL,NULL);
+section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,4.0,1.0,SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,&plot_data);
 }
 
 int drag_active=0;
@@ -228,10 +238,7 @@ gboolean on_motion(GtkWidget *widget,GdkEvent *event,gpointer user_data)
 			{
 			section_z=0.1*round(10*(drag_start_section_z+0.02*(event->motion.x-drag_start_x)));
 			section.center=vector3(0,0,section_z);
-			section_update_coords(&section);
-			section_clear(&section);
-			section_draw_vector_field_with_scalar(&section,vector_plot_func,scalar_plot_func,NULL);
-			section_update_texture(&section);
+			section_update(&section);
 			}
 		}
 	}

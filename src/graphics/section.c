@@ -73,10 +73,8 @@ vector3_t* points=calloc((section->subdivisions+1)*(section->subdivisions+1),siz
 return points;
 }
 
-void section_draw_vector_array(section_t* section,vector3_t* points,vector3_t* data)
+void section_draw_vector_array(section_t* section,cairo_t* cr,vector3_t* points,vector3_t* data)
 {
-cairo_t* cr=section->context;
-
 vector3_t xaxis,yaxis;
 section_get_axes(section,&xaxis,&yaxis);
 
@@ -92,10 +90,8 @@ cairo_set_source_rgba(cr,0,0,0,1.0);
 cairo_stroke(cr);
 }
 
-//TODO make this take points as an argument for consistency
-void section_draw_scalar_array(section_t* section,double* data)
+void section_draw_scalar_array(section_t* section,cairo_t* cr,double* data)
 {
-cairo_t* cr=section->context;
 cairo_pattern_t * pattern = cairo_pattern_create_mesh();
 	for(int i=0;i<section->subdivisions;i++)
 	for(int j=0;j<section->subdivisions;j++)
@@ -111,10 +107,10 @@ cairo_pattern_t * pattern = cairo_pattern_create_mesh();
 	cairo_mesh_pattern_line_to(pattern,-0.5*section->x_range+(i+1)*section->step_x,-0.5*section->y_range+(j+1)*section->step_y);
 	cairo_mesh_pattern_line_to(pattern,-0.5*section->x_range+i*section->step_x,-0.5*section->y_range+(j+1)*section->step_y);
 	cairo_mesh_pattern_line_to(pattern,-0.5*section->x_range+i*section->step_x,-0.5*section->y_range+j*section->step_y);
-	cairo_mesh_pattern_set_corner_color_rgba(pattern, 0, a_col.x, a_col.y, a_col.z,1.0);
-	cairo_mesh_pattern_set_corner_color_rgba(pattern, 1, b_col.x, b_col.y, b_col.z,1.0);
-	cairo_mesh_pattern_set_corner_color_rgba(pattern, 2, c_col.x, c_col.y, c_col.z,1.0);
-	cairo_mesh_pattern_set_corner_color_rgba(pattern, 3, d_col.x, d_col.y, d_col.z,1.0);
+	cairo_mesh_pattern_set_corner_color_rgba(pattern, 0, a_col.x, a_col.y, a_col.z,section->alpha);
+	cairo_mesh_pattern_set_corner_color_rgba(pattern, 1, b_col.x, b_col.y, b_col.z,section->alpha);
+	cairo_mesh_pattern_set_corner_color_rgba(pattern, 2, c_col.x, c_col.y, c_col.z,section->alpha);
+	cairo_mesh_pattern_set_corner_color_rgba(pattern, 3, d_col.x, d_col.y, d_col.z,section->alpha);
 	cairo_mesh_pattern_end_patch(pattern);
 	}
 cairo_set_source(cr, pattern);
@@ -122,62 +118,8 @@ cairo_rectangle(cr,-0.5*section->x_range,-0.5*section->y_range,section->x_range,
 cairo_fill(cr);
 }
 
-void section_draw_scalar_field(section_t* section,void (*scalar)(int,vector3_t*,void*,double*),void* closure)
+void section_draw_grid(section_t* section,cairo_t* cr)
 {
-vector3_t* points=section_get_grid_points(section);
-double* data=calloc((section->subdivisions+1)*(section->subdivisions+1),sizeof(double));
-scalar((section->subdivisions+1)*(section->subdivisions+1),points,closure,data);
-section_draw_scalar_array(section,data);
-free(points);
-free(data);
-}
-
-void section_draw_vector_field(section_t* section,void (*vector)(int,vector3_t*,void*,vector3_t*),void* closure)
-{
-vector3_t* points=section_get_grid_points(section);
-vector3_t* data=calloc((section->subdivisions+1)*(section->subdivisions+1),sizeof(vector3_t));
-vector((section->subdivisions+1)*(section->subdivisions+1),points,closure,data);
-section_draw_vector_array(section,points,data);
-free(points);
-free(data);
-}
-
-void section_draw_vector_field_with_scalar(section_t* section,void (*vector)(int,vector3_t*,void*,vector3_t*),double (*scalar)(vector3_t,void*),void* closure)
-{
-int num_points=(section->subdivisions+1)*(section->subdivisions+1);
-vector3_t* points=section_get_grid_points(section);
-vector3_t* vector_data=calloc(num_points,sizeof(vector3_t));
-double* scalar_data=calloc(num_points,sizeof(double));
-vector(num_points,points,closure,vector_data);
-	for(int i=0;i<num_points;i++)scalar_data[i]=scalar(vector_data[i],closure);
-section_draw_scalar_array(section,scalar_data);
-section_draw_vector_array(section,points,vector_data);
-free(points);
-free(vector_data);
-free(scalar_data);
-}
-
-
-
-
-void section_clear(section_t* section)
-{
-cairo_save(section->context);
-cairo_set_source_rgba(section->context,0,0,0,0);
-cairo_set_operator(section->context, CAIRO_OPERATOR_SOURCE);
-cairo_paint (section->context);
-cairo_restore(section->context);
-}
-
-void section_draw_grid(section_t* section)
-{
-cairo_t* cr=section->context;
-
-cairo_set_source_rgba(cr,0.5,0.5,0.5,0.25);
-cairo_rectangle(cr,-0.5*section->x_range,-0.5*section->y_range,section->x_range,section->y_range);
-cairo_fill(cr);
-
-
 cairo_set_source_rgba(cr,0.5,0.5,0.5,0.5);
 
 float step=0.1;
@@ -211,100 +153,109 @@ for(int i=-steps_y/10;i<=steps_y/10;i++)
 cairo_stroke(cr);
 }
 
-
-void section_update_texture(section_t* section)
+void section_update(section_t* section)
 {
-glActiveTexture(GL_TEXTURE0);
-glBindTexture(GL_TEXTURE_2D,section->gl_object.tex);
-int width=cairo_image_surface_get_width(section->surface);
-int height=cairo_image_surface_get_height(section->surface);
-unsigned char* data=cairo_image_surface_get_data(section->surface);
-glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,width,height,0,GL_BGRA,GL_UNSIGNED_BYTE,data); 
-}
-
-void section_get_vertex_data(section_t* section,float* vertex_data)
-{
-section->normal=vector3_normalize(section->normal);
-
+//TODO this would be better at the end, but section_get_vertex_data updates needed values
 vector3_t xaxis,yaxis;
+section->normal=vector3_normalize(section->normal);
 section_get_axes(section,&xaxis,&yaxis);
-
-
 section->vertices[0]=vector3_add(section->center,vector3_add(vector3_scale(xaxis,-0.5*section->x_range),vector3_scale(yaxis,-0.5*section->y_range)));
 section->vertices[1]=vector3_add(section->center,vector3_add(vector3_scale(xaxis,0.5*section->x_range),vector3_scale(yaxis,-0.5*section->y_range)));
 section->vertices[2]=vector3_add(section->center,vector3_add(vector3_scale(xaxis,0.5*section->x_range),vector3_scale(yaxis,0.5*section->y_range)));
 section->vertices[3]=vector3_add(section->center,vector3_add(vector3_scale(xaxis,-0.5*section->x_range),vector3_scale(yaxis,0.5*section->y_range)));
+section->step_x=section->x_range/section->subdivisions;
+section->step_y=section->y_range/section->subdivisions;
+
+int resolution=256;
+
+//Set up Cairo context
+int width=(int)ceil(resolution*section->x_range);
+int height=(int)ceil(resolution*section->y_range);
+cairo_surface_t* surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,width,height);
+cairo_t* context=cairo_create(surface);
+
+//Set transform
+cairo_set_line_width(context,1.0/resolution);
+cairo_scale(context,width/section->x_range,height/section->y_range);
+cairo_translate(context,0.5*section->x_range,0.5*section->y_range);
+
+//Paint surface
+int num_points=0;
+vector3_t* points=NULL;
+vector3_t* vector_data=NULL;
+double* scalar_data=NULL;
+	if(section->flags&(SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR))
+	{
+	num_points=(section->subdivisions+1)*(section->subdivisions+1);
+	points=section_get_grid_points(section);
+	}
+	if(section->flags&(SECTION_SHOW_VECTOR))
+	{
+	vector_data=calloc(num_points,sizeof(vector3_t));
+	section->vector(num_points,points,section->closure,vector_data);
+	}
+	if(section->flags&(SECTION_SHOW_SCALAR))
+	{
+	scalar_data=calloc(num_points,sizeof(double));
+		for(int i=0;i<num_points;i++)scalar_data[i]=section->scalar(vector_data[i],section->closure);
+	}
+
+	if(!(section->flags&SECTION_SHOW_SCALAR))
+	{
+	cairo_set_source_rgba(context,0.5,0.5,0.5,section->alpha);
+	cairo_rectangle(context,-0.5*section->x_range,-0.5*section->y_range,section->x_range,section->y_range);
+	cairo_fill(context);
+	}
+	else
+	{
+	section_draw_scalar_array(section,context,scalar_data);
+	}
+	if(section->flags&SECTION_SHOW_GRID)section_draw_grid(section,context);
+	if(section->flags&SECTION_SHOW_VECTOR)section_draw_vector_array(section,context,points,vector_data);
+
+//Free data if it was allocated
+free(points);
+free(vector_data);
+free(scalar_data);
 
 
-vertex_data[0]=section->vertices[0].x;
-vertex_data[1]=section->vertices[0].y;
-vertex_data[2]=section->vertices[0].z;
-vertex_data[3]=section->normal.x;
-vertex_data[4]=section->normal.y;
-vertex_data[5]=section->normal.z;
-vertex_data[6]=0.0;
-vertex_data[7]=0.0;
-vertex_data[8]=section->vertices[1].x;
-vertex_data[9]=section->vertices[1].y;
-vertex_data[10]=section->vertices[1].z;
-vertex_data[11]=section->normal.x;
-vertex_data[12]=section->normal.y;
-vertex_data[13]=section->normal.z;
-vertex_data[14]=1.0;
-vertex_data[15]=0.0;
-vertex_data[16]=section->vertices[2].x;
-vertex_data[17]=section->vertices[2].y;
-vertex_data[18]=section->vertices[2].z;
-vertex_data[19]=section->normal.x;
-vertex_data[20]=section->normal.y;
-vertex_data[21]=section->normal.z;
-vertex_data[22]=1.0;
-vertex_data[23]=1.0;
-vertex_data[24]=section->vertices[3].x;
-vertex_data[25]=section->vertices[3].y;
-vertex_data[26]=section->vertices[3].z;
-vertex_data[27]=section->normal.x;
-vertex_data[28]=section->normal.y;
-vertex_data[29]=section->normal.z;
-vertex_data[30]=0.0;
-vertex_data[31]=1.0;
-}
+//Update texture data
+glActiveTexture(GL_TEXTURE0);
+glBindTexture(GL_TEXTURE_2D,section->gl_object.tex);
+glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,width,height,0,GL_BGRA,GL_UNSIGNED_BYTE,cairo_image_surface_get_data(surface)); 
 
-void section_update_coords(section_t* section)
-{
-float vertex_data[32];
-section_get_vertex_data(section,vertex_data);
+//Update vertex data
+float vertex_data[32]={
+	section->vertices[0].x,section->vertices[0].y,section->vertices[0].z,section->normal.x,section->normal.y,section->normal.z,0.0,0.0,
+	section->vertices[1].x,section->vertices[1].y,section->vertices[1].z,section->normal.x,section->normal.y,section->normal.z,1.0,0.0,
+	section->vertices[2].x,section->vertices[2].y,section->vertices[2].z,section->normal.x,section->normal.y,section->normal.z,1.0,1.0,
+	section->vertices[3].x,section->vertices[3].y,section->vertices[3].z,section->normal.x,section->normal.y,section->normal.z,0.0,1.0
+	};
 glBindBuffer(GL_ARRAY_BUFFER,section->gl_object.vbo);
 glBufferSubData(GL_ARRAY_BUFFER,0,32*sizeof(float),vertex_data);
 }
 
-int section_init(section_t* section,vector3_t center,vector3_t normal,float x_range,float y_range)
+int section_init(section_t* section,vector3_t center,vector3_t normal,float x_range,float y_range,float alpha,int flags,void (*vector)(int,vector3_t*,void*,vector3_t*),double (*scalar)(vector3_t,void*),void* closure)
 {
+//Set parameters
 section->center=center;
 section->normal=normal;
 section->x_range=x_range;
 section->y_range=y_range;
+section->alpha=alpha;
+section->flags=flags;
+section->vector=vector;
+section->scalar=scalar;
+section->closure=closure;
 section->subdivisions=30;
-section->step_x=section->x_range/section->subdivisions;
-section->step_y=section->y_range/section->subdivisions;
 
-float vertex_data[32];
+//Create OpenGL object
+float vertex_data[32]={0};
 int index_data[12]={0,1,2,0,2,3,1,0,3,1,3,2};
-section_get_vertex_data(section,vertex_data);
+unsigned char tex_data[4]={0,0,0,255};
+object_init(&(section->gl_object),4,12,1,1,vertex_data,index_data,tex_data);
 
-
-int resolution=256;
-
-int width=(int)ceil(resolution*x_range);
-int height=(int)ceil(resolution*y_range);
-
-section->surface=cairo_image_surface_create(CAIRO_FORMAT_ARGB32,width,height);
-section->context=cairo_create(section->surface);
-
-cairo_set_line_width(section->context,1.0/resolution);
-cairo_scale(section->context,width/section->x_range,height/section->y_range);
-cairo_translate(section->context,0.5*section->x_range,0.5*section->y_range);
-
-object_init(&(section->gl_object),4,12,width,height,vertex_data,index_data,cairo_image_surface_get_data(section->surface));
+//Set everything else
+section_update(section);
 }
 
