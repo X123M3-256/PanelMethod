@@ -226,7 +226,7 @@ int* ipiv=calloc(mesh->num_panels,sizeof(int));
 	for(int i=0;i<mesh->num_panels;i++)
 	{
 	vector3_t normal=mesh_get_panel_normal(mesh,i);
-	source_strengths[i]=-normal.x;
+	source_strengths[i]=normal.x;
 	}
 
 panel_local_basis_t basis;
@@ -261,7 +261,7 @@ void mesh_get_panel_velocities(mesh_t* mesh,double* source_strengths,double* dou
 panel_local_basis_t basis;
 	for(int j=0;j<mesh->num_panels;j++)
 	{
-	velocities[j]=vector3(1,0,0);
+	velocities[j]=vector3(-1,0,0);
 	}
 	for(int i=0;i<mesh->num_panels;i++)
 	{

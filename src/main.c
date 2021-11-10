@@ -46,7 +46,7 @@ plot_data_t* data=(plot_data_t*)closure;
 panel_local_basis_t basis;
 	for(int j=0;j<num_points;j++)
 	{
-	output[j]=vector3(1,0,0);
+	output[j]=vector3(-1,0,0);
 	}
 	for(int i=0;i<data->mesh->num_panels;i++)
 	{
@@ -59,88 +59,6 @@ panel_local_basis_t basis;
 		}
 	}
 }
-
-/*
-void scalar_plot_func(int num_points,vector3_t* points,void* data,double* output)
-{
-panel_local_basis_t basis;
-	for(int j=0;j<num_points;j++)
-	{
-	output[j]=points[j].x;
-	}
-	for(int i=0;i<mesh.num_panels;i++)
-	{
-	mesh_get_panel_local_basis(&mesh,i,&basis);
-		for(int j=0;j<num_points;j++)
-		{
-		double source=0.0;
-		double doublet=0.0;
-		mesh_get_panel_influence(&basis,points[j],&source,&doublet);
-		output[j]+=source_strengths[i]*source+doublet_strengths[i]*doublet;
-		}
-	}
-return;
-}
-
-void vector_plot_func_numeric(int num_points,vector3_t* points,void* data,vector3_t* output)
-{
-panel_local_basis_t basis;
-//Create sample point arrays
-double h=0.001;
-vector3_t* top=calloc(num_points,sizeof(vector3_t));
-vector3_t* bottom=calloc(num_points,sizeof(vector3_t));
-vector3_t* left=calloc(num_points,sizeof(vector3_t));
-vector3_t* right=calloc(num_points,sizeof(vector3_t));
-vector3_t* front=calloc(num_points,sizeof(vector3_t));
-vector3_t* back=calloc(num_points,sizeof(vector3_t));
-
-double* top_output=calloc(num_points,sizeof(double));
-double* bottom_output=calloc(num_points,sizeof(double));
-double* left_output=calloc(num_points,sizeof(double));
-double* right_output=calloc(num_points,sizeof(double));
-double* front_output=calloc(num_points,sizeof(double));
-double* back_output=calloc(num_points,sizeof(double));
-
-	for(int j=0;j<num_points;j++)
-	{
-	top[j]=vector3_add(points[j],vector3(0,h,0));
-	bottom[j]=vector3_add(points[j],vector3(0,-h,0));
-	left[j]=vector3_add(points[j],vector3(-h,0,0));
-	right[j]=vector3_add(points[j],vector3(h,0,0));
-	front[j]=vector3_add(points[j],vector3(0,0,h));
-	back[j]=vector3_add(points[j],vector3(0,0,-h));
-	}
-
-scalar_plot_func(num_points,top,NULL,top_output);
-scalar_plot_func(num_points,bottom,NULL,bottom_output);
-scalar_plot_func(num_points,left,NULL,left_output);
-scalar_plot_func(num_points,right,NULL,right_output);
-scalar_plot_func(num_points,front,NULL,front_output);
-scalar_plot_func(num_points,back,NULL,back_output);
-vector_plot_func(num_points,points,NULL,output);
-
-	for(int j=0;j<num_points;j++)
-	{
-	//output[j]=vector3((right_output[j]-left_output[j])/(2.0*h),(top_output[j]-bottom_output[j])/(2.0*h),(front_output[j]-back_output[j])/(2.0*h));
-	output[j]=vector3_sub(output[j],vector3((right_output[j]-left_output[j])/(2.0*h),(top_output[j]-bottom_output[j])/(2.0*h),(front_output[j]-back_output[j])/(2.0*h)));
-	//output[j].x-=1;
-	}
-
-free(top);
-free(bottom);
-free(left);
-free(right);
-free(front);
-free(back);
-free(top_output);
-free(bottom_output);
-free(left_output);
-free(right_output);
-free(front_output);
-free(back_output);
-return;
-}
-*/
 
 void on_realize (GtkGLArea *area)
 {
