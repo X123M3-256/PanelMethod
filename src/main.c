@@ -3,7 +3,7 @@
 #include<GL/gl.h>
 #include<gtk/gtk.h>
 #include<math.h>
-#include "graphics/render.h"
+#include "graphics/mesh.h"
 #include "graphics/section.h"
 #include "solver/panel.h"
 
@@ -65,7 +65,8 @@ void on_realize (GtkGLArea *area)
 gtk_gl_area_make_current (area);
   if(gtk_gl_area_get_error(area)!= NULL)return;
 
-render_init();
+glEnable(GL_DEPTH_TEST); 
+glEnable(GL_CULL_FACE);
 
 	if(shader_load_from_files(&object_shader,"shaders/object/vertex.glsl","shaders/object/fragment.glsl"))
 	{

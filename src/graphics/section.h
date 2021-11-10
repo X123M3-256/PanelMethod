@@ -1,6 +1,6 @@
 #ifndef SECTION_H_INCLUDED
 #define SECTION_H_INCLUDED
-#include "render.h"
+#include "object.h"
 
 enum
 {

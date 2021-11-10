@@ -1,7 +1,6 @@
 #ifndef PANEL_H_INCLUDED
 #define PANEL_H_INCLUDED
 #include "../util/vectormath.h"
-#include "../graphics/render.h"
 
 typedef struct
 {
@@ -34,8 +33,6 @@ double m[4];
 
 
 int mesh_load(mesh_t* mesh,const char* filename);
-int mesh_init_render_object(mesh_t* mesh,object_t* object);
-int mesh_update_render_object(mesh_t* mesh,object_t* object,double* panel_values_x,double* panel_values_y);
 vector3_t mesh_get_panel_vertex(mesh_t* mesh,int panel,int vertex);
 vector3_t mesh_get_panel_normal(mesh_t* mesh,int panel);
 vector3_t mesh_get_panel_collocation_point(mesh_t* mesh,int panel);
