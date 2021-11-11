@@ -24,7 +24,8 @@ int* vertex_panel_counts=calloc(8*(mesh->num_panels+mesh->num_vertices),sizeof(i
 	for(int i=0;i<mesh->num_panels;i++)
 	{
 	vector3_t normal=mesh_get_panel_normal(mesh,i);	
-	vector3_t collocation_point=mesh_get_panel_collocation_point(mesh,i);	
+	//TODO revert to using collocation point when I have a better way to handle AoA
+	vector3_t collocation_point=vector3_scale(vector3_add(vector3_add(mesh->vertices[mesh->panels[i].vertices[0]],mesh->vertices[mesh->panels[i].vertices[1]]),vector3_add(mesh->vertices[mesh->panels[i].vertices[2]],mesh->vertices[mesh->panels[i].vertices[3]])),0.25);
 	vertices[8*(mesh->num_vertices+i)]=  collocation_point.x;
 	vertices[8*(mesh->num_vertices+i)+1]=collocation_point.y;
 	vertices[8*(mesh->num_vertices+i)+2]=collocation_point.z;

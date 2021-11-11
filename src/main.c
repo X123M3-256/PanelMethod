@@ -99,7 +99,7 @@ plot_data.mesh=&mesh;
 plot_data.source_strengths=source_strengths;
 plot_data.doublet_strengths=doublet_strengths;
 section_init(&grid,vector3(0,0,0),vector3(0,1,0),4.0,4.0,0.25,SECTION_SHOW_GRID,NULL,NULL,NULL);
-section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,4.0,1.0,SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,&plot_data);
+//section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,4.0,1.0,SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,&plot_data);
 }
 
 int drag_active=0;
@@ -149,9 +149,9 @@ gboolean on_motion(GtkWidget *widget,GdkEvent *event,gpointer user_data)
 		{
 			if(0.1*round(10*(drag_start_section_z+0.02*(event->motion.x-drag_start_x)))!=section_z)
 			{
-			section_z=0.1*round(10*(drag_start_section_z+0.02*(event->motion.x-drag_start_x)));
-			section.center=vector3(0,0,section_z);
-			section_update(&section);
+			//section_z=0.1*round(10*(drag_start_section_z+0.02*(event->motion.x-drag_start_x)));
+			//section.center=vector3(0,0,section_z);
+			//section_update(&section);
 			}
 		}
 	}
@@ -171,6 +171,7 @@ gtk_widget_queue_draw(GTK_WIDGET(widget));
 return TRUE;  
 }
 
+double aoa=0.0;
 
 gboolean render(GtkGLArea *area, GdkGLContext *context)
 {
@@ -195,13 +196,33 @@ matrix_t camera=matrix_identity();
 
 matrix_t modelview=matrix_mult(matrix_translate(vector3(0.0,0.0,5.0)),matrix_mult(matrix_rotate_x(-pitch*3.1415926),matrix_rotate_y(-yaw*3.1415926)));
 
-object_render(&box,projection,camera,modelview,&object_shader);
+object_render(&box,projection,camera,matrix_mult(modelview,matrix_rotate_z(aoa)),&object_shader);
 glEnable(GL_BLEND);
 glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);  
 //object_render(&(section.gl_object),projection,camera,modelview,&section_shader);
 object_render(&(grid.gl_object),projection,camera,modelview,&section_shader);
 glDisable(GL_BLEND);
 return TRUE;
+}
+
+void update_panel_solution()
+{
+mesh_solve(&mesh,source_strengths,doublet_strengths,aoa);
+
+vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
+mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,panel_velocities);
+	for(int i=0;i<mesh.num_panels;i++)panel_pressure[i]=scalar_plot_func(panel_velocities[i],NULL);
+free(panel_velocities);
+mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
+}
+
+gboolean on_aoa_changed(GtkRange* self,GtkScrollType* scroll,gdouble value,gpointer user_data)
+{
+	if(value>30.0)value=30.0;
+	if(value<-30.0)value=-30.0;
+aoa=M_PI*value/180.0;
+update_panel_solution();
+gtk_widget_queue_draw(GTK_WIDGET(user_data));
 }
 
 
@@ -231,7 +252,7 @@ wing.airfoil.thickness[1]=0.08;
 wing.airfoil.thickness[2]=0.08;
 airfoil_update_gradients(&(wing.airfoil));
 
-wing.num_segments=2;
+wing.num_segments=1;
 wing.segment_offset[0]=vector3(0,0,0);
 wing.segment_offset[1]=vector3(0,0,1);
 wing.segment_offset[2]=vector3(0,0,2);
@@ -239,18 +260,15 @@ wing.segment_chord[0]=1;
 wing.segment_chord[1]=0.5;
 wing.segment_chord[2]=0.25;
 
-wing_init_mesh(&wing,&mesh,10,20);
+wing_init_mesh(&wing,&mesh,10,10);
 
 source_strengths=calloc(mesh.num_panels,sizeof(double));
 doublet_strengths=calloc(mesh.num_panels,sizeof(double));
-
-mesh_solve(&mesh,source_strengths,doublet_strengths);
-
 panel_pressure=calloc(mesh.num_panels,sizeof(double));
-vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
-mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,panel_velocities);
-	for(int i=0;i<mesh.num_panels;i++)panel_pressure[i]=scalar_plot_func(panel_velocities[i],NULL);
 
+aoa=0;
+
+update_panel_solution();
 
 
 

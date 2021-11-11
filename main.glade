@@ -2,6 +2,12 @@
 <!-- Generated with glade 3.38.2 -->
 <interface>
   <requires lib="gtk+" version="3.24"/>
+  <object class="GtkAdjustment" id="adjustment1">
+    <property name="lower">-30</property>
+    <property name="upper">30</property>
+    <property name="step-increment">1</property>
+    <property name="page-increment">10</property>
+  </object>
   <object class="GtkApplicationWindow" id="window1">
     <property name="can-focus">False</property>
     <child>
@@ -102,6 +108,24 @@
             <property name="expand">True</property>
             <property name="fill">True</property>
             <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkScale">
+            <property name="visible">True</property>
+            <property name="can-focus">True</property>
+            <property name="adjustment">adjustment1</property>
+            <property name="restrict-to-fill-level">False</property>
+            <property name="fill-level">0</property>
+            <property name="round-digits">1</property>
+            <property name="digits">0</property>
+            <property name="has-origin">False</property>
+            <signal name="change-value" handler="on_aoa_changed" object="draw_area" swapped="no"/>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">2</property>
           </packing>
         </child>
       </object>

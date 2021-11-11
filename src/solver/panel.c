@@ -23,13 +23,15 @@ vector3_t mesh_get_panel_collocation_point(mesh_t* mesh,int panel)
 return vector3_scale(vector3_add(vector3_add(mesh_get_panel_vertex(mesh,panel,0),mesh_get_panel_vertex(mesh,panel,1)),vector3_add(mesh_get_panel_vertex(mesh,panel,2),mesh_get_panel_vertex(mesh,panel,3))),0.25); 
 }
 
-void mesh_update_panel_data(mesh_t* mesh)
+void mesh_update_panel_data(mesh_t* mesh,double aoa)
 {
+matrix_t transform=matrix_rotate_z(aoa);
 //Update panel vertices
 	for(int i=0;i<mesh->num_panels;i++)
 	for(int j=0;j<4;j++)
 	{
-	mesh->panel_vertices[j+4*i]=mesh->vertices[mesh->panels[i].vertices[j]];
+	vector3_t vector=mesh->vertices[mesh->panels[i].vertices[j]];
+	mesh->panel_vertices[j+4*i]=matrix_vector(transform,vector);
 	}
 //Update panel normals
 	for(int i=0;i<mesh->num_panels;i++)
@@ -94,7 +96,7 @@ uint32_t mesh_start_face=0;
 aiReleaseImport(scene);
 mesh->panel_vertices=calloc(4*mesh->num_panels,sizeof(vector3_t));
 mesh->panel_normals=calloc(mesh->num_panels,sizeof(vector3_t));
-mesh_update_panel_data(mesh);
+mesh_update_panel_data(mesh,0.0);
 }
 
 
@@ -106,7 +108,7 @@ mesh->vertices=vertices;
 mesh->panels=panels;
 mesh->panel_vertices=calloc(4*mesh->num_panels,sizeof(vector3_t));
 mesh->panel_normals=calloc(mesh->num_panels,sizeof(vector3_t));
-mesh_update_panel_data(mesh);
+mesh_update_panel_data(mesh,0.0);
 }
 
 
@@ -229,8 +231,11 @@ doublet=vector3_scale(doublet,1.0/(4.0*M_PI));
 
 /*Solver code*/
 
-void mesh_solve(mesh_t* mesh,double* source_strengths,double* doublet_strengths)
+void mesh_solve(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa)
 {
+mesh_update_panel_data(mesh,aoa);
+
+
 double* matrix=calloc(mesh->num_panels*mesh->num_panels,sizeof(double));
 double* rhs=doublet_strengths;
 int* ipiv=calloc(mesh->num_panels,sizeof(int));
@@ -239,7 +244,9 @@ int* ipiv=calloc(mesh->num_panels,sizeof(int));
 	{
 	vector3_t normal=mesh_get_panel_normal(mesh,i);
 	source_strengths[i]=normal.x;
+	rhs[i]=0;
 	}
+
 
 panel_local_basis_t basis;
 	for(int i=0;i<mesh->num_panels;i++)

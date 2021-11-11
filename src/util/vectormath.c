@@ -182,16 +182,18 @@ matrix_t result;
     }
 return result;
 }
-/*
+
+
+
 vector3_t matrix_vector(matrix_t mat,vector3_t vector)
 {
 vector3_t result;
-result.x=MATRIX_INDEX(mat,0,0)*vector.x+MATRIX_INDEX(mat,0,1)*vector.y+MATRIX_INDEX(mat,0,2)*vector.z;
-result.y=MATRIX_INDEX(mat,1,0)*vector.x+MATRIX_INDEX(mat,1,1)*vector.y+MATRIX_INDEX(mat,1,2)*vector.z;
-result.z=MATRIX_INDEX(mat,2,0)*vector.x+MATRIX_INDEX(mat,2,1)*vector.y+MATRIX_INDEX(mat,2,2)*vector.z;
+result.x=MATRIX_INDEX(mat,0,0)*vector.x+MATRIX_INDEX(mat,0,1)*vector.y+MATRIX_INDEX(mat,0,2)*vector.z+MATRIX_INDEX(mat,0,3);
+result.y=MATRIX_INDEX(mat,1,0)*vector.x+MATRIX_INDEX(mat,1,1)*vector.y+MATRIX_INDEX(mat,1,2)*vector.z+MATRIX_INDEX(mat,1,3);
+result.z=MATRIX_INDEX(mat,2,0)*vector.x+MATRIX_INDEX(mat,2,1)*vector.y+MATRIX_INDEX(mat,2,2)*vector.z+MATRIX_INDEX(mat,2,3);
 return result;
 }
-*/
+
 matrix_t matrix_translate(vector3_t a)
 {
 return matrix(1,0,0,a.x,0,1,0,a.y,0,0,1,a.z,0,0,0,1);
