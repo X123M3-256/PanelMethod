@@ -2,9 +2,6 @@
 #include<stdio.h>
 #include<math.h>
 #include<assert.h>
-#include <assimp/cimport.h>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
 #include<lapacke.h>
 #include "panel.h"
 
@@ -38,65 +35,6 @@ matrix_t transform=matrix_rotate_z(aoa);
 	{
 	mesh->panel_normals[i]=vector3_normalize(vector3_cross(vector3_sub(mesh_get_panel_vertex(mesh,i,2),mesh_get_panel_vertex(mesh,i,0)),vector3_sub(mesh_get_panel_vertex(mesh,i,1),mesh_get_panel_vertex(mesh,i,0))));
 	}
-}
-
-int mesh_load_from_file(mesh_t* mesh,const char* filename)
-{
-const struct aiScene* scene = aiImportFile(filename,aiProcess_FlipWindingOrder|aiProcess_JoinIdenticalVertices|aiProcess_FindDegenerates);
-
-	if(!scene)
-	{
-	printf("Importing file \"%s\" failed with error: %s\n",filename,aiGetErrorString());
-	return 1;
-	}
-
-//Count vertices and faces in scene
-mesh->num_vertices=0;
-mesh->num_panels=0;
-
-	for(uint32_t j=0;j<scene->mNumMeshes;j++)
-	{
-	mesh->num_vertices+=scene->mMeshes[j]->mNumVertices;
-	mesh->num_panels+=scene->mMeshes[j]->mNumFaces;
-	}
-
-//TODO detect if UVs are not used and do not load them
-mesh->vertices=malloc(mesh->num_vertices*sizeof(vector3_t));
-mesh->panels=malloc(mesh->num_panels*sizeof(panel_t));
-
-uint32_t mesh_start_vertex=0;	
-uint32_t mesh_start_face=0;
-	
-	for(uint32_t j=0;j<scene->mNumMeshes;j++)
-	{
-	const struct aiMesh* aimesh=scene->mMeshes[j];
-	printf("Mesh vertices %d faces %d\n",aimesh->mNumVertices,aimesh->mNumFaces);
-	
-		for(uint32_t i=0;i<aimesh->mNumVertices;i++)
-		{
-		mesh->vertices[mesh_start_vertex+i]=vector3(aimesh->mVertices[i].x,aimesh->mVertices[i].y,aimesh->mVertices[i].z);
-		}
-
-		for(uint32_t i=0;i<aimesh->mNumFaces;i++)
-		{
-		assert(aimesh->mFaces[i].mNumIndices==3||aimesh->mFaces[i].mNumIndices==4);
-			for(uint32_t j=0;j<aimesh->mFaces[i].mNumIndices;j++)
-			{
-				if(i==2)printf("Load Index %d\n",mesh_start_vertex+aimesh->mFaces[i].mIndices[j]);
-			mesh->panels[mesh_start_face+i].vertices[j]=mesh_start_vertex+aimesh->mFaces[i].mIndices[j];
-			//	if(i==2)mesh->panels[mesh_start_face+i].vertices[j]=0;//esh_start_vertex+aimesh->mFaces[i].mIndices[j];
-			}
-		//Treat triangles as degenerate quads
-			if(aimesh->mFaces[i].mNumIndices==3)mesh->panels[mesh_start_face+i].vertices[3]=mesh_start_vertex+aimesh->mFaces[i].mIndices[2];
-		}
-	mesh_start_vertex+=aimesh->mNumVertices;
-	mesh_start_face+=aimesh->mNumFaces;
-	}
-
-aiReleaseImport(scene);
-mesh->panel_vertices=calloc(4*mesh->num_panels,sizeof(vector3_t));
-mesh->panel_normals=calloc(mesh->num_panels,sizeof(vector3_t));
-mesh_update_panel_data(mesh,0.0);
 }
 
 
