@@ -6,6 +6,7 @@
 #include "graphics/mesh.h"
 #include "graphics/section.h"
 #include "solver/panel.h"
+#include "geometry/wing.h"
 
 vector3_t panel_normals[6];
 vector3_t panel_vertices[24];
@@ -22,9 +23,11 @@ object_t box;
 section_t section;
 section_t grid;
 
+wing_t wing;
 
 double* source_strengths;
 double* doublet_strengths;
+double* panel_pressure;
 
 typedef struct
 {
@@ -89,15 +92,6 @@ glEnable(GL_CULL_FACE);
 mesh_init_render_object(&mesh,&box);
 
 
-source_strengths=calloc(mesh.num_panels,sizeof(double));
-doublet_strengths=calloc(mesh.num_panels,sizeof(double));
-
-mesh_solve(&mesh,source_strengths,doublet_strengths);
-
-double* panel_pressure=calloc(mesh.num_panels,sizeof(double));
-vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
-mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,panel_velocities);
-	for(int i=0;i<mesh.num_panels;i++)panel_pressure[i]=scalar_plot_func(panel_velocities[i],NULL);
 
 mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
 
@@ -204,11 +198,12 @@ matrix_t modelview=matrix_mult(matrix_translate(vector3(0.0,0.0,5.0)),matrix_mul
 object_render(&box,projection,camera,modelview,&object_shader);
 glEnable(GL_BLEND);
 glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);  
-object_render(&(section.gl_object),projection,camera,modelview,&section_shader);
+//object_render(&(section.gl_object),projection,camera,modelview,&section_shader);
 object_render(&(grid.gl_object),projection,camera,modelview,&section_shader);
 glDisable(GL_BLEND);
 return TRUE;
 }
+
 
 
 int main(int argc,char **argv)
@@ -223,13 +218,42 @@ GtkBuilder* builder=gtk_builder_new();
 	return 0;
 	}
 
-//mesh_update_panel_data(&mesh);
+//Initialize airfoil
+wing.airfoil.num_splines=2;
+wing.airfoil.x_points[0]=0;
+wing.airfoil.x_points[1]=0.75;
+wing.airfoil.x_points[2]=1;
+wing.airfoil.centerline[0]=0;
+wing.airfoil.centerline[1]=0;
+wing.airfoil.centerline[2]=0;
+wing.airfoil.thickness[0]=0;
+wing.airfoil.thickness[1]=0.08;
+wing.airfoil.thickness[2]=0.08;
+airfoil_update_gradients(&(wing.airfoil));
 
-	if(mesh_load_from_file(&mesh,"wing.obj"))
-	{
-	printf("Failed loading mesh\n");
-	return;
-	}
+wing.num_segments=2;
+wing.segment_offset[0]=vector3(0,0,0);
+wing.segment_offset[1]=vector3(0,0,1);
+wing.segment_offset[2]=vector3(0,0,2);
+wing.segment_chord[0]=1;
+wing.segment_chord[1]=0.5;
+wing.segment_chord[2]=0.25;
+
+wing_init_mesh(&wing,&mesh,10,20);
+
+source_strengths=calloc(mesh.num_panels,sizeof(double));
+doublet_strengths=calloc(mesh.num_panels,sizeof(double));
+
+mesh_solve(&mesh,source_strengths,doublet_strengths);
+
+panel_pressure=calloc(mesh.num_panels,sizeof(double));
+vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
+mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,panel_velocities);
+	for(int i=0;i<mesh.num_panels;i++)panel_pressure[i]=scalar_plot_func(panel_velocities[i],NULL);
+
+
+
+
 
 GtkWidget* window=GTK_WIDGET(gtk_builder_get_object(builder,"window1"));
 //gtk_window_fullscreen(GTK_WINDOW(window));

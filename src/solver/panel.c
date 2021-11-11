@@ -98,6 +98,18 @@ mesh_update_panel_data(mesh);
 }
 
 
+int mesh_init(mesh_t* mesh,int num_vertices,int num_panels,vector3_t* vertices,panel_t* panels)
+{
+mesh->num_vertices=num_vertices;
+mesh->num_panels=num_panels;
+mesh->vertices=vertices;
+mesh->panels=panels;
+mesh->panel_vertices=calloc(4*mesh->num_panels,sizeof(vector3_t));
+mesh->panel_normals=calloc(mesh->num_panels,sizeof(vector3_t));
+mesh_update_panel_data(mesh);
+}
+
+
 /*Influence computation routines*/
 
 void mesh_get_panel_local_basis(mesh_t* mesh,int panel,panel_local_basis_t* basis)

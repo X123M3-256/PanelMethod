@@ -32,6 +32,7 @@ double m[4];
 
 
 
+int mesh_init(mesh_t* mesh,int num_vertices,int num_panels,vector3_t* vertices,panel_t* panels);
 int mesh_load(mesh_t* mesh,const char* filename);
 vector3_t mesh_get_panel_vertex(mesh_t* mesh,int panel,int vertex);
 vector3_t mesh_get_panel_normal(mesh_t* mesh,int panel);
