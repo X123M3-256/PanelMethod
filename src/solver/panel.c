@@ -24,19 +24,10 @@ double quadrilateral_diameter(vector2_t* p)
 return fmax(fmax(vector2_norm(vector2_sub(p[1],p[0])),vector2_norm(vector2_sub(p[3],p[2]))),fmax(vector2_norm(vector2_sub(p[2],p[0])),vector2_norm(vector2_sub(p[3],p[1]))));
 }
 
-int mesh_init(mesh_t* mesh,int num_vertices,int num_panels,vector3_t* vertices,panel_t* panels)
+
+void mesh_update_panel_data(mesh_t* mesh,int start,int end)
 {
-mesh->num_vertices=num_vertices;
-mesh->num_panels=num_panels;
-mesh->vertices=vertices;
-mesh->panels=panels;
-
-mesh->areas=calloc(num_panels,sizeof(double));
-mesh->diameters=calloc(num_panels,sizeof(double));
-mesh->collocation_points=calloc(num_panels,sizeof(vector3_t));
-mesh->normals=calloc(num_panels,sizeof(vector3_t));
-
-	for(int i=0;i<mesh->num_panels;i++)
+	for(int i=0;i<mesh->num_panels+mesh->num_wake_panels;i++)
 	{
 	panel_t panel=mesh->panels[i];
 	vector3_t local_x=vector3_normalize(vector3_sub(mesh->vertices[panel.vertices[1]],mesh->vertices[panel.vertices[0]]));
@@ -54,6 +45,29 @@ mesh->normals=calloc(num_panels,sizeof(vector3_t));
 	mesh->normals[i]=local_z;
 	mesh->collocation_points[i]=vector3_add(vector3_add(vector3_scale(local_x,centroid.x),vector3_scale(local_y,centroid.y)),mesh->vertices[panel.vertices[0]]);
 	}
+}
+
+int mesh_init(mesh_t* mesh,int num_vertices,int num_panels,vector3_t* vertices,panel_t* panels,int num_wake_strip_panels,int num_wake_strip_vertices,int num_wake_strips,int* wake_vertices,int* upper_panels,int* lower_panels)
+{
+mesh->num_vertices=num_vertices;
+mesh->num_panels=num_panels;
+mesh->vertices=vertices;
+mesh->panels=panels;
+mesh->num_wake_strip_panels=num_wake_strip_panels;
+mesh->num_wake_strip_vertices=num_wake_strip_vertices;
+mesh->num_wake_strips=num_wake_strips;
+mesh->wake_vertices=wake_vertices;
+mesh->wake_upper_panels=upper_panels;
+mesh->wake_lower_panels=lower_panels;
+
+
+//Compute derived quantities
+mesh->num_wake_panels=num_wake_strips*num_wake_strip_panels;
+mesh->areas=calloc(num_panels+mesh->num_wake_panels,sizeof(double));
+mesh->diameters=calloc(num_panels+mesh->num_wake_panels,sizeof(double));
+mesh->collocation_points=calloc(num_panels+mesh->num_wake_panels,sizeof(vector3_t));
+mesh->normals=calloc(num_panels+mesh->num_wake_panels,sizeof(vector3_t));
+mesh_update_panel_data(mesh,0,mesh->num_panels+mesh->num_wake_panels);
 }
 
 
@@ -121,7 +135,7 @@ void mesh_get_panel_influence(panel_local_basis_t* basis,vector3_t source_point,
 vector3_t diff=vector3_sub(source_point,basis->center);
 double r=vector3_norm(diff);
 
-	if(r>3.0*basis->diameter)
+	if(0&&r>3.0*basis->diameter)
 	{
 	//Far field approximation
 	*source_influence=-basis->area/(2*r*M_PI);
@@ -156,7 +170,7 @@ vector3_t point=vector3(vector3_dot(b->local_x,diff),vector3_dot(b->local_y,diff
 vector3_t source=vector3(0,0,0);
 vector3_t doublet=vector3(0,0,0);
 
-	if(r>3.0*b->diameter)
+	if(0&&r>3.0*b->diameter)
 	{
 	//Far field approximation
 	double factor=b->area/(4*M_PI*r*r*sqrt(r));
@@ -196,19 +210,71 @@ vector3_t doublet=vector3(0,0,0);
 
 /*Solver code*/
 
+void mesh_initialize_wake(mesh_t* mesh,vector3_t freestream,double wake_length)
+{
+	for(int i=0;i<mesh->num_wake_strips;i++)
+	for(int j=0;j<mesh->num_wake_strip_vertices;j++)
+	{
+	double dist=-wake_length*(i+1)/(double)(mesh->num_wake_strips);
+	mesh->vertices[mesh->num_vertices+j+i*mesh->num_wake_strip_vertices]=vector3_add(mesh->vertices[mesh->wake_vertices[j]],vector3_scale(freestream,dist));
+	}
+mesh_update_panel_data(mesh,mesh->num_panels,mesh->num_wake_panels);
+}
+
+/*
+void mesh_update_wake(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa)
+{
+vector3_t freestream=vector3(cos(aoa),-sin(aoa),0);
+
+vector3_t* previous_row=calloc(mesh->num_wake_strip_vertices,sizeof(vector3_t));
+vector3_t* current_row=calloc(mesh->num_wake_strip_vertices,sizeof(vector3_t));
+vector3_t row_velocities=calloc(mesh->num_wake_strip_vertices,sizeof(vector3_t));
+
+	for(int i=0;i<mesh->num_wake_strip_vertices;i++)previous_row[i]=mesh->vertices[mesh->wake_vertices[j]];
+
+	for(int i=0;i<mesh->num_wake_strips;i++)
+	{
+	//Because the solution is singular at the panel vertices, we compute the velocity at the panel center and then average two
+	
+
+	//Load current vertex positions
+		for(int i=0;i<mesh->num_wake_strip_vertices;i++)current_row[i]=mesh->vertices[mesh->wake_vertices[j]];
+
+
+	for(int j=0;j<mesh->num_wake_strip_vertices;j++)
+	{
+
+
+	double dist=-wake_length*(i+1)/(double)(mesh->num_wake_strips);
+	mesh->vertices[mesh->num_vertices+j+i*mesh->num_wake_strip_vertices]=vector3_add(,vector3_scale(freestream,dist));
+	}
+	}
+
+
+free(cur_row);
+free(previous_row);
+}
+*/
+
+
 void mesh_solve(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa)
 {
-double* matrix=calloc(mesh->num_panels*mesh->num_panels,sizeof(double));
+int n=mesh->num_panels+mesh->num_wake_strip_panels;
+double* matrix=calloc(n*n,sizeof(double));
 double* rhs=doublet_strengths;
-int* ipiv=calloc(mesh->num_panels,sizeof(int));
+int* ipiv=calloc(n,sizeof(int));
 
+
+//Initialize wake shape and source strength
 vector3_t freestream=vector3(cos(aoa),-sin(aoa),0);
+mesh_initialize_wake(mesh,freestream,3.0);
 	for(int i=0;i<mesh->num_panels;i++)
 	{
 	source_strengths[i]=vector3_dot(mesh->normals[i],freestream);
 	rhs[i]=0;
 	}
 
+//Compute surface panel influence matrix TODO it appears this is a symmetric matrix so could be optimized
 panel_local_basis_t basis;
 	for(int i=0;i<mesh->num_panels;i++)
 	{
@@ -219,24 +285,54 @@ panel_local_basis_t basis;
 		double doublet=0.0;
 		vector3_t collocation_point=mesh->collocation_points[j];
 		mesh_get_panel_influence(&basis,collocation_point,&source,&doublet);
-		matrix[j+i*mesh->num_panels]=doublet;
+		matrix[j+i*n]=doublet;
 
 		rhs[j]-=source_strengths[i]*source;
 		}
-
-	
-	matrix[i+i*mesh->num_panels]=0.5;
+	matrix[i+i*n]=0.5;
 	}
 
-	if(LAPACKE_dgesv(LAPACK_COL_MAJOR,mesh->num_panels,1,matrix,mesh->num_panels,ipiv,rhs,mesh->num_panels)!=0)
+//Compute influence of wake panels on surface panels
+	for(int i=0;i<1;i++)//mesh->num_wake_strips;i++)
+	{
+		for(int j=0;j<mesh->num_wake_strip_panels;j++)
+		{
+		mesh_get_panel_local_basis(mesh,mesh->num_panels+j+i*mesh->num_wake_strip_panels,&basis);
+			for(int k=0;k<mesh->num_panels;k++)
+			{
+			double source=0.0;
+			double doublet=0.0;
+			vector3_t collocation_point=mesh->collocation_points[k];
+			mesh_get_panel_influence(&basis,collocation_point,&source,&doublet);
+			matrix[k+(mesh->num_panels+j)*n]+=doublet;
+			}
+		}
+	}
+
+//Impose Kutta condition on wake
+	for(int i=0;i<mesh->num_wake_strip_panels;i++)
+	{
+	matrix[(mesh->num_panels+i)+(mesh->num_panels+i)*n]=1.0;
+	matrix[mesh->wake_upper_panels[i]*n+(mesh->num_panels+i)]=-1.0;
+	matrix[mesh->wake_lower_panels[i]*n+(mesh->num_panels+i)]=1.0;
+	rhs[mesh->num_panels+i]=0.0;
+	}
+
+	if(LAPACKE_dgesv(LAPACK_COL_MAJOR,n,1,matrix,n,ipiv,rhs,n)!=0)
 	{
 	printf("Solution failed\n");
+	}
+
+	for(int i=0;i<mesh->num_wake_strip_panels;i++)
+	{
+	printf("Wake strength %d %f\n",i,doublet_strengths[mesh->num_panels+i]);
+	//printf("Upper panel strength %d %f\n",i,doublet_strengths[mesh->wake_upper_panels[i]]);
 	}
 
 free(matrix);
 }
 
-void mesh_get_panel_velocities(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,vector3_t* velocities)
+void mesh_compute_velocities_general(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,int num_points,vector3_t* points,vector3_t* velocities,int surface)
 {
 panel_local_basis_t basis;
 vector3_t freestream=vector3(-cos(aoa),sin(aoa),0);
@@ -247,13 +343,38 @@ vector3_t freestream=vector3(-cos(aoa),sin(aoa),0);
 	for(int i=0;i<mesh->num_panels;i++)
 	{
 	mesh_get_panel_local_basis(mesh,i,&basis);
-		for(int j=0;j<mesh->num_panels;j++)
+		for(int j=0;j<num_points;j++)
 		{
 		vector3_t source,doublet;
-		mesh_get_panel_velocity_influence(&basis,mesh->collocation_points[j],&source,&doublet);
+		mesh_get_panel_velocity_influence(&basis,points[j],&source,&doublet);
 			//Source velocities are discontinuous on the panel surface, so use the outer limit
-			if(i==j)source=vector3_scale(mesh->normals[j],0.5);
+			if(surface&&i==j)source=vector3_scale(mesh->normals[j],0.5);
 		velocities[j]=vector3_add(velocities[j],vector3_add(vector3_scale(source,source_strengths[i]),vector3_scale(doublet,doublet_strengths[i])));
 		}
 	}
+
+	for(int i=0;i<mesh->num_wake_strips;i++)
+	{
+		for(int j=0;j<mesh->num_wake_strip_panels;j++)
+		{
+		mesh_get_panel_local_basis(mesh,mesh->num_panels+j+i*mesh->num_wake_strip_panels,&basis);
+			for(int k=0;k<num_points;k++)
+			{
+			vector3_t source,doublet;
+			mesh_get_panel_velocity_influence(&basis,points[k],&source,&doublet);
+			velocities[k]=vector3_add(velocities[k],vector3_scale(doublet,doublet_strengths[mesh->num_panels+j]));
+			}
+		}
+	}
+
+}
+
+void mesh_compute_velocity(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,int num_points,vector3_t* points,vector3_t* velocities)
+{
+mesh_compute_velocities_general(mesh,source_strengths,doublet_strengths,aoa,num_points,points,velocities,0);
+}
+
+void mesh_compute_surface_velocity(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,vector3_t* velocities)
+{
+mesh_compute_velocities_general(mesh,source_strengths,doublet_strengths,aoa,mesh->num_panels,mesh->collocation_points,velocities,1);
 }

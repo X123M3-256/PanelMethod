@@ -17,7 +17,8 @@ mesh_t mesh={8,6,NULL,NULL,NULL,NULL,NULL,NULL};
 shader_t object_shader;
 shader_t section_shader;
 
-object_t box;
+object_t mesh_object;
+object_t wake_object;
 section_t section;
 section_t grid;
 
@@ -55,23 +56,8 @@ vector3_t* points=calloc(num_points,sizeof(vector3_t));
 	points[j]=vector3(c*source_points[j].x+s*source_points[j].y,-s*source_points[j].x+c*source_points[j].y,source_points[j].z);
 	}
 
-panel_local_basis_t basis;
-	for(int j=0;j<num_points;j++)
-	{
-	output[j]=vector3(-cos(aoa),sin(aoa),0);
-	}
-	for(int i=0;i<data->mesh->num_panels;i++)
-	{
-	mesh_get_panel_local_basis(data->mesh,i,&basis);
-		for(int j=0;j<num_points;j++)
-		{
-		vector3_t source,doublet;
-		mesh_get_panel_velocity_influence(&basis,points[j],&source,&doublet);
-		output[j]=vector3_add(output[j],vector3_add(vector3_scale(source,data->source_strengths[i]),vector3_scale(doublet,data->doublet_strengths[i])));
-		}
-	}
+mesh_compute_velocity(&mesh,data->source_strengths,data->doublet_strengths,aoa,num_points,points,output);
 free(points);
-
 //Transform results back
 	for(int j=0;j<num_points;j++)
 	{
@@ -106,11 +92,12 @@ glEnable(GL_CULL_FACE);
 //      return;
 //    }
 
-mesh_init_render_object(&mesh,&box);
+mesh_init_render_object(&mesh,&mesh_object);
+wake_init_render_object(&mesh,&wake_object);
 
 
 
-mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
+mesh_update_render_object(&mesh,&mesh_object,panel_pressure,NULL);
 
 plot_data.mesh=&mesh;
 plot_data.source_strengths=source_strengths;
@@ -213,7 +200,8 @@ matrix_t camera=matrix_identity();
 
 matrix_t modelview=matrix_mult(matrix_translate(vector3(0.0,0.0,dist)),matrix_mult(matrix_rotate_x(-pitch*3.1415926),matrix_rotate_y(-yaw*3.1415926)));
 
-object_render(&box,projection,camera,matrix_mult(modelview,matrix_rotate_z(aoa)),&object_shader);
+object_render(&mesh_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(aoa)),&object_shader);
+object_render(&wake_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(aoa)),&object_shader);
 glEnable(GL_BLEND);
 glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);  
 object_render(&(section.gl_object),projection,camera,modelview,&section_shader);
@@ -229,20 +217,20 @@ mesh_solve(&mesh,source_strengths,doublet_strengths,aoa);
 clock_t time1=clock();
 
 vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
-mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,aoa,panel_velocities);
+mesh_compute_surface_velocity(&mesh,source_strengths,doublet_strengths,aoa,panel_velocities);
 	for(int i=0;i<mesh.num_panels;i++)panel_pressure[i]=scalar_plot_func(panel_velocities[i],NULL);
 free(panel_velocities);
 clock_t time2=clock();
 section_update(&section);
 clock_t time3=clock();
-mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
+mesh_update_render_object(&mesh,&mesh_object,panel_pressure,NULL);
+wake_update_render_object(&mesh,&wake_object);
 clock_t time4=clock();
 
 printf("Solve time %f\n",(double)(time1-time0)/CLOCKS_PER_SEC);
 printf("Pressure compuation time %f\n",(double)(time2-time1)/CLOCKS_PER_SEC);
 printf("Section update %f\n",(double)(time3-time2)/CLOCKS_PER_SEC);
 printf("Total update time %f\n\n",(double)(time4-time0)/CLOCKS_PER_SEC);
-
 }
 
 gboolean on_aoa_changed(GtkRange* self,GtkScrollType* scroll,gdouble value,gpointer user_data)
@@ -267,6 +255,7 @@ GtkBuilder* builder=gtk_builder_new();
 	}
 
 //Initialize airfoil
+/*
 wing.airfoil.num_splines=2;
 wing.airfoil.x_points[0]=0;
 wing.airfoil.x_points[1]=0.75;
@@ -278,20 +267,36 @@ wing.airfoil.thickness[0]=0;
 wing.airfoil.thickness[1]=0.08;
 wing.airfoil.thickness[2]=0.08;
 airfoil_update_gradients(&(wing.airfoil));
+*/
+
+wing.airfoil.num_splines=2;
+wing.airfoil.x_points[0]=0;
+wing.airfoil.x_points[1]=0.73;
+wing.airfoil.x_points[2]=1;
+wing.airfoil.centerline[0]=0;
+wing.airfoil.centerline[1]=0.07;
+wing.airfoil.centerline[2]=0;
+wing.airfoil.thickness[0]=0;
+wing.airfoil.thickness[1]=0.08;
+wing.airfoil.thickness[2]=0.08;
+airfoil_update_gradients(&(wing.airfoil));
+
+
+
 
 wing.num_segments=1;
 wing.segment_offset[0]=vector3(0,0,0);
-wing.segment_offset[1]=vector3(0,0,1);
+wing.segment_offset[1]=vector3(0,0,1.5);
 wing.segment_offset[2]=vector3(0,0,2);
 wing.segment_chord[0]=1;
 wing.segment_chord[1]=0.5;
 wing.segment_chord[2]=0.25;
 
 //mesh_init(&mesh,8,6,vertices,panels);
-wing_init_mesh(&wing,&mesh,10,10);
+wing_init_mesh(&wing,&mesh,10,10,10);
 
 source_strengths=calloc(mesh.num_panels,sizeof(double));
-doublet_strengths=calloc(mesh.num_panels,sizeof(double));
+doublet_strengths=calloc(mesh.num_panels+mesh.num_wake_strip_panels,sizeof(double));
 panel_pressure=calloc(mesh.num_panels,sizeof(double));
 
 aoa=0;

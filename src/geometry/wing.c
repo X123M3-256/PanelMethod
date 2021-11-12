@@ -134,7 +134,7 @@ set_panel(panels+(2*chordwise_panels-1),tip_section_start+chordwise_panels+1,win
 	}
 }
 
-void wing_init_mesh(wing_t* wing,mesh_t* mesh,int chordwise_panels,int spanwise_panels)
+void wing_init_mesh(wing_t* wing,mesh_t* mesh,int chordwise_panels,int spanwise_panels,int wake_panels)
 {
 assert(wing->num_segments<=spanwise_panels);
 
@@ -151,17 +151,16 @@ int segment_start_panel=0;
 	}
 assert(segment_start_panel==spanwise_panels);
 
-
-
 int section_vertices=2*chordwise_panels;
 
 int num_vertices=(2*spanwise_panels+1)*section_vertices+2*(chordwise_panels-1);
 int num_panels=4*spanwise_panels*chordwise_panels+4*chordwise_panels;
+int wake_strip_vertices=2*spanwise_panels+1;
 
-vector3_t* vertices=calloc(num_vertices,sizeof(vector3_t));
+vector3_t* vertices=calloc(num_vertices+wake_strip_vertices*wake_panels,sizeof(vector3_t));
 
 
-//Main wing
+//Main wing points
 int segment_start_vertex=0;
 wing_compute_section_points(wing,vertices,wing->num_segments,chordwise_panels,1);
  
@@ -174,16 +173,14 @@ wing_compute_section_points(wing,vertices,wing->num_segments,chordwise_panels,1)
 	segment_start_vertex+=segment_panels[index]*section_vertices;
 	}
 
-
 //Wingtip points
 wing_compute_tip_points(wing,vertices+(2*spanwise_panels+1)*section_vertices,chordwise_panels,1);
 wing_compute_tip_points(wing,vertices+(2*spanwise_panels+1)*section_vertices+(chordwise_panels-1),chordwise_panels,0);
 
 
-panel_t* panels=calloc(num_panels,sizeof(panel_t));
+panel_t* panels=calloc(num_panels+2*spanwise_panels*wake_panels,sizeof(panel_t));
 
 wing_compute_segment_panels(wing,panels,0,2*spanwise_panels,chordwise_panels);
-
 
 int wingtip_start=2*(2*spanwise_panels+1)*chordwise_panels;
 int tip_section_start=0;
@@ -193,6 +190,46 @@ wingtip_start=2*(2*spanwise_panels+1)*chordwise_panels+(chordwise_panels-1);
 tip_section_start=4*spanwise_panels*chordwise_panels;
 wing_compute_wingtip_panels(wing,panels+4*spanwise_panels*chordwise_panels+2*chordwise_panels,wingtip_start,tip_section_start,chordwise_panels,0);
 
-mesh_init(mesh,num_vertices,num_panels,vertices,panels);
+
+//Wake
+int wake_start_vertex=(2*spanwise_panels+1)*section_vertices+2*(chordwise_panels-1);
+int num_wake_vertices=2*spanwise_panels+1;
+
+//TODO consider making this a parameter
+double wake_length=3.0;
+	for(int i=0;i<wake_panels;i++)
+	for(int j=0;j<=2*spanwise_panels;j++)
+	{
+	double dist=wake_length*(i+1)/(double)wake_panels;
+	vertices[wake_start_vertex+j+i*num_wake_vertices]=vector3_add(vertices[j*section_vertices],vector3(-dist,0,0));	
+	}
+
+	for(int i=0;i<2*spanwise_panels;i++)
+	{
+	panels[i+num_panels].vertices[0]=i*section_vertices;
+	panels[i+num_panels].vertices[1]=(i+1)*section_vertices;
+	panels[i+num_panels].vertices[2]=wake_start_vertex+i+1;
+	panels[i+num_panels].vertices[3]=wake_start_vertex+i;
+	}
+	for(int i=1;i<wake_panels;i++)
+	for(int j=0;j<2*spanwise_panels;j++)
+	{
+	panels[j+2*i*spanwise_panels+num_panels].vertices[0]=wake_start_vertex+(i-1)*num_wake_vertices+j;
+	panels[j+2*i*spanwise_panels+num_panels].vertices[1]=wake_start_vertex+(i-1)*num_wake_vertices+j+1;
+	panels[j+2*i*spanwise_panels+num_panels].vertices[2]=wake_start_vertex+i*num_wake_vertices+j+1;
+	panels[j+2*i*spanwise_panels+num_panels].vertices[3]=wake_start_vertex+i*num_wake_vertices+j;
+	}
+
+int* wake_upper_panels=calloc(2*spanwise_panels,sizeof(int));
+int* wake_lower_panels=calloc(2*spanwise_panels,sizeof(int));
+int* wake_vertices=calloc(wake_strip_vertices,sizeof(int));
+	for(int i=0;i<2*spanwise_panels;i++)
+	{
+	wake_upper_panels[i]=2*i*chordwise_panels;
+	wake_lower_panels[i]=2*(i+1)*chordwise_panels-1;
+	}
+	for(int i=0;i<wake_strip_vertices;i++)wake_vertices[i]=i*section_vertices;
+
+mesh_init(mesh,num_vertices,num_panels,vertices,panels,2*spanwise_panels,wake_strip_vertices,wake_panels,wake_vertices,wake_upper_panels,wake_lower_panels);
 }
 

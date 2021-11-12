@@ -16,7 +16,7 @@ float segment_chord[WING_MAX_SEGMENTS+1];
 }wing_t;
 
 
-void wing_init_mesh(wing_t* wing,mesh_t* mesh,int chordwise_panels,int spanwise_panels);
+void wing_init_mesh(wing_t* wing,mesh_t* mesh,int chordwise_panels,int spanwise_panels,int wake_panels);
 
 
 #endif
