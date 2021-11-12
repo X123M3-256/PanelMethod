@@ -247,7 +247,7 @@ section->flags=flags;
 section->vector=vector;
 section->scalar=scalar;
 section->closure=closure;
-section->subdivisions=30;
+section->subdivisions=20;
 
 //Create OpenGL object
 float vertex_data[32]={0};

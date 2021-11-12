@@ -115,8 +115,8 @@ mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
 plot_data.mesh=&mesh;
 plot_data.source_strengths=source_strengths;
 plot_data.doublet_strengths=doublet_strengths;
-section_init(&grid,vector3(0,0,0),vector3(0,1,0),4.0,4.0,0.25,SECTION_SHOW_GRID,NULL,NULL,NULL);
-section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,4.0,1.0,SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,&plot_data);
+section_init(&grid,vector3(0,-1,0),vector3(0,1,0),4.0,4.0,0.25,SECTION_SHOW_GRID,NULL,NULL,NULL);
+section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,2.0,1.0,SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,&plot_data);
 }
 
 int drag_active=0;
@@ -241,7 +241,7 @@ clock_t time4=clock();
 printf("Solve time %f\n",(double)(time1-time0)/CLOCKS_PER_SEC);
 printf("Pressure compuation time %f\n",(double)(time2-time1)/CLOCKS_PER_SEC);
 printf("Section update %f\n",(double)(time3-time2)/CLOCKS_PER_SEC);
-printf("Total update time %f\n\n",(double)(time2-time0)/CLOCKS_PER_SEC);
+printf("Total update time %f\n\n",(double)(time4-time0)/CLOCKS_PER_SEC);
 
 }
 
