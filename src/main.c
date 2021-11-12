@@ -224,14 +224,25 @@ return TRUE;
 
 void update_panel_solution()
 {
+clock_t time0=clock();
 mesh_solve(&mesh,source_strengths,doublet_strengths,aoa);
+clock_t time1=clock();
 
 vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
 mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,aoa,panel_velocities);
 	for(int i=0;i<mesh.num_panels;i++)panel_pressure[i]=scalar_plot_func(panel_velocities[i],NULL);
 free(panel_velocities);
-mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
+clock_t time2=clock();
 section_update(&section);
+clock_t time3=clock();
+mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
+clock_t time4=clock();
+
+printf("Solve time %f\n",(double)(time1-time0)/CLOCKS_PER_SEC);
+printf("Pressure compuation time %f\n",(double)(time2-time1)/CLOCKS_PER_SEC);
+printf("Section update %f\n",(double)(time3-time2)/CLOCKS_PER_SEC);
+printf("Total update time %f\n\n",(double)(time2-time0)/CLOCKS_PER_SEC);
+
 }
 
 gboolean on_aoa_changed(GtkRange* self,GtkScrollType* scroll,gdouble value,gpointer user_data)

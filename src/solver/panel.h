@@ -29,6 +29,8 @@ vector3_t local_x;
 vector3_t local_z;
 vector3_t local_y;
 vector2_t p[4];
+double diameter;
+double area;
 double d[4];
 double m[4];
 }panel_local_basis_t;

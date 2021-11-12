@@ -67,7 +67,8 @@ basis->center=mesh->collocation_points[panel];
 basis->local_x=vector3_normalize(vector3_sub(mesh->vertices[mesh->panels[panel].vertices[1]],mesh->vertices[mesh->panels[panel].vertices[0]]));
 basis->local_z=mesh->normals[panel];
 basis->local_y=vector3_cross(basis->local_z,basis->local_x);
-
+basis->diameter=mesh->diameters[panel];
+basis->area=mesh->areas[panel];
 //Transform panel vertices into local coordinate system
 
 	for(int i=0;i<4;i++)
@@ -118,6 +119,16 @@ void mesh_get_panel_influence_intermediates(panel_local_basis_t* basis,vector3_t
 void mesh_get_panel_influence(panel_local_basis_t* basis,vector3_t source_point,double* source_influence,double* doublet_influence)
 {
 vector3_t diff=vector3_sub(source_point,basis->center);
+double r=vector3_norm(diff);
+
+	if(r>3.0*basis->diameter)
+	{
+	//Far field approximation
+	*source_influence=-basis->area/(2*r*M_PI);
+	*doublet_influence=vector3_dot(basis->local_z,diff)*(*source_influence)/r;
+	return;
+	}
+
 vector3_t point=vector3(vector3_dot(basis->local_x,diff),vector3_dot(basis->local_y,diff),vector3_dot(basis->local_z,diff));
 
 influence_intermediates_t intermediates;
@@ -139,34 +150,45 @@ double B=0.0;
 void mesh_get_panel_velocity_influence(panel_local_basis_t* b,vector3_t source_point,vector3_t* source_influence,vector3_t* doublet_influence)
 {
 vector3_t diff=vector3_sub(source_point,b->center);
+double r=vector3_norm(diff);
 vector3_t point=vector3(vector3_dot(b->local_x,diff),vector3_dot(b->local_y,diff),vector3_dot(b->local_z,diff));
-
-influence_intermediates_t im;
-mesh_get_panel_influence_intermediates(b,point,&im);
-
-double doublet_factors[4];
-	for(int i=0;i<b->num_points;i++)
-	{
-	int j=(3+i)&3;
-	doublet_factors[i]=(im.r[i]+im.r[j])/(im.r[j]*im.r[i]*(im.r[j]*im.r[i]+((point.x-b->p[j].x)*(point.x-b->p[i].x)+(point.y-b->p[j].y)*(point.y-b->p[i].y)+point.z*point.z)));
-	}
 
 vector3_t source=vector3(0,0,0);
 vector3_t doublet=vector3(0,0,0);
-	for(int i=0;i<b->num_points;i++)
-	{
-	int j=(3+i)&3;
-	source.x+=im.logs[i]*(b->p[j].y-b->p[i].y)/b->d[i];
-	source.y+=im.logs[i]*(b->p[i].x-b->p[j].x)/b->d[i];
-	source.z+=(atan((b->m[i]*im.e[j]-im.h[j])/(point.z*im.r[j]))
-	          -atan((b->m[i]*im.e[i]-im.h[i])/(point.z*im.r[i])));
-	doublet.x+=point.z*(b->p[j].y-b->p[i].y)*doublet_factors[i];
-	doublet.y+=point.z*(b->p[i].x-b->p[j].x)*doublet_factors[i];
-	doublet.z+=((point.x-b->p[i].x)*(point.y-b->p[j].y)-(point.x-b->p[j].x)*(point.y-b->p[i].y))*doublet_factors[i];
-	}
-source=vector3_scale(source,1.0/(4.0*M_PI));
-doublet=vector3_scale(doublet,1.0/(4.0*M_PI));
 
+	if(r>3.0*b->diameter)
+	{
+	//Far field approximation
+	double factor=b->area/(4*M_PI*r*r*sqrt(r));
+	source=vector3_scale(point,factor);
+	doublet=vector3_scale(vector3(3*point.x*point.z,3*point.y*point.z,point.x*point.x+point.y*point.y-2*point.z*point.z),factor);	
+	}
+	else
+	{
+	influence_intermediates_t im;
+	mesh_get_panel_influence_intermediates(b,point,&im);
+
+	double doublet_factors[4];
+		for(int i=0;i<b->num_points;i++)
+		{
+		int j=(3+i)&3;
+		doublet_factors[i]=(im.r[i]+im.r[j])/(im.r[j]*im.r[i]*(im.r[j]*im.r[i]+((point.x-b->p[j].x)*(point.x-b->p[i].x)+(point.y-b->p[j].y)*(point.y-b->p[i].y)+point.z*point.z)));
+		}
+
+		for(int i=0;i<b->num_points;i++)
+		{
+		int j=(3+i)&3;
+		source.x+=im.logs[i]*(b->p[j].y-b->p[i].y)/b->d[i];
+		source.y+=im.logs[i]*(b->p[i].x-b->p[j].x)/b->d[i];
+		source.z+=(atan((b->m[i]*im.e[j]-im.h[j])/(point.z*im.r[j]))
+			  -atan((b->m[i]*im.e[i]-im.h[i])/(point.z*im.r[i])));
+		doublet.x+=point.z*(b->p[j].y-b->p[i].y)*doublet_factors[i];
+		doublet.y+=point.z*(b->p[i].x-b->p[j].x)*doublet_factors[i];
+		doublet.z+=((point.x-b->p[i].x)*(point.y-b->p[j].y)-(point.x-b->p[j].x)*(point.y-b->p[i].y))*doublet_factors[i];
+		}
+	source=vector3_scale(source,1.0/(4.0*M_PI));
+	doublet=vector3_scale(doublet,1.0/(4.0*M_PI));
+	}
 *source_influence=vector3_add(vector3_add(vector3_scale(b->local_x,source.x),vector3_scale(b->local_y,source.y)),vector3_scale(b->local_z,source.z));
 *doublet_influence=vector3_add(vector3_add(vector3_scale(b->local_x,doublet.x),vector3_scale(b->local_y,doublet.y)),vector3_scale(b->local_z,doublet.z));
 }
