@@ -5,38 +5,24 @@
 #include<lapacke.h>
 #include "panel.h"
 
-vector3_t mesh_get_panel_vertex(mesh_t* mesh,int panel,int vertex)
+
+double quadrilateral_area(vector2_t* p)
 {
-return mesh->panel_vertices[vertex+4*panel];
+return 0.5*(p[0].x*p[1].y+p[1].x*p[2].y+p[2].x*p[3].y+p[3].x*p[0].y-p[1].x*p[0].y-p[2].x*p[1].y-p[3].x*p[2].y-p[0].x*p[3].y);
 }
 
-vector3_t mesh_get_panel_normal(mesh_t* mesh,int panel)
+vector2_t quadrilateral_centroid(vector2_t* p)
 {
-return mesh->panel_normals[panel];
+double factor=1.0/(6.0*quadrilateral_area(p));
+double x=(p[0].x+p[1].x)*(p[0].x*p[1].y-p[1].x*p[0].y)+(p[1].x+p[2].x)*(p[1].x*p[2].y-p[2].x*p[1].y)+(p[2].x+p[3].x)*(p[2].x*p[3].y-p[3].x*p[2].y)+(p[3].x+p[0].x)*(p[3].x*p[0].y-p[0].x*p[3].y);
+double y=(p[0].y+p[1].y)*(p[0].x*p[1].y-p[1].x*p[0].y)+(p[1].y+p[2].y)*(p[1].x*p[2].y-p[2].x*p[1].y)+(p[2].y+p[3].y)*(p[2].x*p[3].y-p[3].x*p[2].y)+(p[3].y+p[0].y)*(p[3].x*p[0].y-p[0].x*p[3].y);
+return vector2(factor*x,factor*y);
 }
 
-vector3_t mesh_get_panel_collocation_point(mesh_t* mesh,int panel)
+double quadrilateral_diameter(vector2_t* p)
 {
-return vector3_scale(vector3_add(vector3_add(mesh_get_panel_vertex(mesh,panel,0),mesh_get_panel_vertex(mesh,panel,1)),vector3_add(mesh_get_panel_vertex(mesh,panel,2),mesh_get_panel_vertex(mesh,panel,3))),0.25); 
+return fmax(fmax(vector2_norm(vector2_sub(p[1],p[0])),vector2_norm(vector2_sub(p[3],p[2]))),fmax(vector2_norm(vector2_sub(p[2],p[0])),vector2_norm(vector2_sub(p[3],p[1]))));
 }
-
-void mesh_update_panel_data(mesh_t* mesh,double aoa)
-{
-matrix_t transform=matrix_rotate_z(aoa);
-//Update panel vertices
-	for(int i=0;i<mesh->num_panels;i++)
-	for(int j=0;j<4;j++)
-	{
-	vector3_t vector=mesh->vertices[mesh->panels[i].vertices[j]];
-	mesh->panel_vertices[j+4*i]=matrix_vector(transform,vector);
-	}
-//Update panel normals
-	for(int i=0;i<mesh->num_panels;i++)
-	{
-	mesh->panel_normals[i]=vector3_normalize(vector3_cross(vector3_sub(mesh_get_panel_vertex(mesh,i,2),mesh_get_panel_vertex(mesh,i,0)),vector3_sub(mesh_get_panel_vertex(mesh,i,1),mesh_get_panel_vertex(mesh,i,0))));
-	}
-}
-
 
 int mesh_init(mesh_t* mesh,int num_vertices,int num_panels,vector3_t* vertices,panel_t* panels)
 {
@@ -44,9 +30,30 @@ mesh->num_vertices=num_vertices;
 mesh->num_panels=num_panels;
 mesh->vertices=vertices;
 mesh->panels=panels;
-mesh->panel_vertices=calloc(4*mesh->num_panels,sizeof(vector3_t));
-mesh->panel_normals=calloc(mesh->num_panels,sizeof(vector3_t));
-mesh_update_panel_data(mesh,0.0);
+
+mesh->areas=calloc(num_panels,sizeof(double));
+mesh->diameters=calloc(num_panels,sizeof(double));
+mesh->collocation_points=calloc(num_panels,sizeof(vector3_t));
+mesh->normals=calloc(num_panels,sizeof(vector3_t));
+
+	for(int i=0;i<mesh->num_panels;i++)
+	{
+	panel_t panel=mesh->panels[i];
+	vector3_t local_x=vector3_normalize(vector3_sub(mesh->vertices[panel.vertices[1]],mesh->vertices[panel.vertices[0]]));
+	vector3_t local_z=vector3_normalize(vector3_cross(vector3_sub(mesh->vertices[panel.vertices[2]],mesh->vertices[panel.vertices[0]]),local_x));
+	vector3_t local_y=vector3_cross(local_x,local_z);
+	vector2_t p[4];
+		for(int j=0;j<4;j++)
+		{
+		vector3_t offset=vector3_sub(mesh->vertices[panel.vertices[j]],mesh->vertices[panel.vertices[0]]);
+		p[j]=vector2(vector3_dot(local_x,offset),vector3_dot(local_y,offset));
+		}
+	vector2_t centroid=quadrilateral_centroid(p);
+	mesh->areas[i]=quadrilateral_area(p);
+	mesh->diameters[i]=quadrilateral_diameter(p);
+	mesh->normals[i]=local_z;
+	mesh->collocation_points[i]=vector3_add(vector3_add(vector3_scale(local_x,centroid.x),vector3_scale(local_y,centroid.y)),mesh->vertices[panel.vertices[0]]);
+	}
 }
 
 
@@ -56,16 +63,16 @@ void mesh_get_panel_local_basis(mesh_t* mesh,int panel,panel_local_basis_t* basi
 {
 basis->num_points=(mesh->panels[panel].vertices[2]==mesh->panels[panel].vertices[3])?3:4;
 //Get local coordinate system in which the panel lies in the XY plane
-basis->center=mesh_get_panel_collocation_point(mesh,panel);
-basis->local_x=vector3_normalize(vector3_sub(mesh_get_panel_vertex(mesh,panel,1),mesh_get_panel_vertex(mesh,panel,0)));
-basis->local_z=mesh_get_panel_normal(mesh,panel);
+basis->center=mesh->collocation_points[panel];
+basis->local_x=vector3_normalize(vector3_sub(mesh->vertices[mesh->panels[panel].vertices[1]],mesh->vertices[mesh->panels[panel].vertices[0]]));
+basis->local_z=mesh->normals[panel];
 basis->local_y=vector3_cross(basis->local_z,basis->local_x);
 
 //Transform panel vertices into local coordinate system
 
 	for(int i=0;i<4;i++)
 	{
-	vector3_t diff=vector3_sub(mesh_get_panel_vertex(mesh,panel,i),basis->center);
+	vector3_t diff=vector3_sub(mesh->vertices[mesh->panels[panel].vertices[i]],basis->center);
 	basis->p[i]=vector2(vector3_dot(basis->local_x,diff),vector3_dot(basis->local_y,diff));
 	}
 
@@ -82,7 +89,7 @@ printf("Local Z %f %f %f\n",basis->local_z.x,basis->local_z.y,basis->local_z.z);
 
 printf("d %f %f %f %f\n",basis->d[0],basis->d[1],basis->d[2],basis->d[3]);
 printf("m %f %f %f %f\n",basis->m[0],basis->m[1],basis->m[2],basis->m[3]);
-*/	
+*/
 }
 
 typedef struct
@@ -160,8 +167,6 @@ vector3_t doublet=vector3(0,0,0);
 source=vector3_scale(source,1.0/(4.0*M_PI));
 doublet=vector3_scale(doublet,1.0/(4.0*M_PI));
 
-
-
 *source_influence=vector3_add(vector3_add(vector3_scale(b->local_x,source.x),vector3_scale(b->local_y,source.y)),vector3_scale(b->local_z,source.z));
 *doublet_influence=vector3_add(vector3_add(vector3_scale(b->local_x,doublet.x),vector3_scale(b->local_y,doublet.y)),vector3_scale(b->local_z,doublet.z));
 }
@@ -171,20 +176,16 @@ doublet=vector3_scale(doublet,1.0/(4.0*M_PI));
 
 void mesh_solve(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa)
 {
-mesh_update_panel_data(mesh,aoa);
-
-
 double* matrix=calloc(mesh->num_panels*mesh->num_panels,sizeof(double));
 double* rhs=doublet_strengths;
 int* ipiv=calloc(mesh->num_panels,sizeof(int));
 
+vector3_t freestream=vector3(cos(aoa),-sin(aoa),0);
 	for(int i=0;i<mesh->num_panels;i++)
 	{
-	vector3_t normal=mesh_get_panel_normal(mesh,i);
-	source_strengths[i]=normal.x;
+	source_strengths[i]=vector3_dot(mesh->normals[i],freestream);
 	rhs[i]=0;
 	}
-
 
 panel_local_basis_t basis;
 	for(int i=0;i<mesh->num_panels;i++)
@@ -194,7 +195,7 @@ panel_local_basis_t basis;
 		{
 		double source=0.0;
 		double doublet=0.0;
-		vector3_t collocation_point=mesh_get_panel_collocation_point(mesh,j);
+		vector3_t collocation_point=mesh->collocation_points[j];
 		mesh_get_panel_influence(&basis,collocation_point,&source,&doublet);
 		matrix[j+i*mesh->num_panels]=doublet;
 
@@ -213,12 +214,13 @@ panel_local_basis_t basis;
 free(matrix);
 }
 
-void mesh_get_panel_velocities(mesh_t* mesh,double* source_strengths,double* doublet_strengths,vector3_t* velocities)
+void mesh_get_panel_velocities(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,vector3_t* velocities)
 {
 panel_local_basis_t basis;
+vector3_t freestream=vector3(-cos(aoa),sin(aoa),0);
 	for(int j=0;j<mesh->num_panels;j++)
 	{
-	velocities[j]=vector3(-1,0,0);
+	velocities[j]=freestream;
 	}
 	for(int i=0;i<mesh->num_panels;i++)
 	{
@@ -226,12 +228,10 @@ panel_local_basis_t basis;
 		for(int j=0;j<mesh->num_panels;j++)
 		{
 		vector3_t source,doublet;
-		mesh_get_panel_velocity_influence(&basis,mesh_get_panel_collocation_point(mesh,j),&source,&doublet);
+		mesh_get_panel_velocity_influence(&basis,mesh->collocation_points[j],&source,&doublet);
 			//Source velocities are discontinuous on the panel surface, so use the outer limit
-			if(i==j)source=vector3_scale(mesh_get_panel_normal(mesh,j),0.5);
+			if(i==j)source=vector3_scale(mesh->normals[j],0.5);
 		velocities[j]=vector3_add(velocities[j],vector3_add(vector3_scale(source,source_strengths[i]),vector3_scale(doublet,doublet_strengths[i])));
 		}
 	}
 }
-
-

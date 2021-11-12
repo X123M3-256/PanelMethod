@@ -31,7 +31,6 @@ return 0.5*(1-cos(M_PI*u));
 
 void wing_compute_section_points(wing_t* wing,vector3_t* points,int segment,int chordwise_panels,int mirror)
 {
-printf("Compute section points segment %d chordpan %d mirror %d\n",segment,chordwise_panels,mirror);
 	for(int i=0;i<=chordwise_panels;i++)
 	{
 	float u=x_panel_distribution(i/(double)chordwise_panels);

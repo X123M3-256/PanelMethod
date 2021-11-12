@@ -8,12 +8,10 @@
 #include "solver/panel.h"
 #include "geometry/wing.h"
 
-vector3_t panel_normals[6];
-vector3_t panel_vertices[24];
-//vector3_t vertices[8]={{-1,-1,-1},{1,-1,-1},{-1,1,-1},{1,1,-1},{-1,-1,1},{1,-1,1},{-1,1,1},{1,1,1}};
-vector3_t vertices[8]={{-0.5,-0.5,-0.5},{0.5,-0.5,-0.5},{-0.5,0.5,-0.5},{0.5,0.5,-0.5},{-0.5,-0.5,0.5},{0.5,-0.5,0.5},{-0.5,0.5,0.5},{0.5,0.5,0.5}};
+vector3_t vertices[8]={{-1,-1,-1},{1,-1,-1},{-1,1,-1},{1,1,-1},{-1,-1,1},{1,-1,1},{-1,1,1},{1,1,1}};
+//vector3_t vertices[8]={{-0.5,-0.5,-0.5},{0.5,-0.5,-0.5},{-0.5,0.5,-0.5},{0.5,0.5,-0.5},{-0.5,-0.5,0.5},{0.5,-0.5,0.5},{-0.5,0.5,0.5},{0.5,0.5,0.5}};
 panel_t panels[6]={{{0,1,3,2}},{{4,6,7,5}},{{1,5,7,3}},{{4,0,2,6}},{{0,4,5,1}},{{2,3,7,6}}};
-mesh_t mesh={8,6,vertices,panels,panel_vertices,panel_normals};
+mesh_t mesh={8,6,NULL,NULL,NULL,NULL,NULL,NULL};
 
 
 shader_t object_shader;
@@ -25,9 +23,11 @@ section_t grid;
 
 wing_t wing;
 
+double aoa=0.0;
 double* source_strengths;
 double* doublet_strengths;
 double* panel_pressure;
+
 
 typedef struct
 {
@@ -43,13 +43,22 @@ double scalar_plot_func(vector3_t point,void* data)
 return 1.0-vector3_dot(point,point);
 }
 
-void vector_plot_func(int num_points,vector3_t* points,void* closure,vector3_t* output)
+void vector_plot_func(int num_points,vector3_t* source_points,void* closure,vector3_t* output)
 {
 plot_data_t* data=(plot_data_t*)closure;
+//Transform points so that the freestream is horizontal
+double c=cos(aoa);
+double s=sin(aoa);
+vector3_t* points=calloc(num_points,sizeof(vector3_t));
+	for(int j=0;j<num_points;j++)
+	{
+	points[j]=vector3(c*source_points[j].x+s*source_points[j].y,-s*source_points[j].x+c*source_points[j].y,source_points[j].z);
+	}
+
 panel_local_basis_t basis;
 	for(int j=0;j<num_points;j++)
 	{
-	output[j]=vector3(-1,0,0);
+	output[j]=vector3(-cos(aoa),sin(aoa),0);
 	}
 	for(int i=0;i<data->mesh->num_panels;i++)
 	{
@@ -61,7 +70,15 @@ panel_local_basis_t basis;
 		output[j]=vector3_add(output[j],vector3_add(vector3_scale(source,data->source_strengths[i]),vector3_scale(doublet,data->doublet_strengths[i])));
 		}
 	}
+free(points);
+
+//Transform results back
+	for(int j=0;j<num_points;j++)
+	{
+	output[j]=vector3(c*output[j].x-s*output[j].y,s*output[j].x+c*output[j].y,output[j].z);
+	}
 }
+
 
 void on_realize (GtkGLArea *area)
 {
@@ -99,7 +116,7 @@ plot_data.mesh=&mesh;
 plot_data.source_strengths=source_strengths;
 plot_data.doublet_strengths=doublet_strengths;
 section_init(&grid,vector3(0,0,0),vector3(0,1,0),4.0,4.0,0.25,SECTION_SHOW_GRID,NULL,NULL,NULL);
-//section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,4.0,1.0,SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,&plot_data);
+section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,4.0,1.0,SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,&plot_data);
 }
 
 int drag_active=0;
@@ -113,7 +130,7 @@ double drag_start_section_z=0.0;
 double pitch=0.16666;
 double yaw=-0.2;
 double section_z=0.0;
-
+double dist=5.0;
 
 gboolean on_button_press(GtkWidget *widget,GdkEvent *event,gpointer user_data)
 {
@@ -149,9 +166,9 @@ gboolean on_motion(GtkWidget *widget,GdkEvent *event,gpointer user_data)
 		{
 			if(0.1*round(10*(drag_start_section_z+0.02*(event->motion.x-drag_start_x)))!=section_z)
 			{
-			//section_z=0.1*round(10*(drag_start_section_z+0.02*(event->motion.x-drag_start_x)));
-			//section.center=vector3(0,0,section_z);
-			//section_update(&section);
+			section_z=0.1*round(10*(drag_start_section_z+0.02*(event->motion.x-drag_start_x)));
+			section.center=vector3(0,0,section_z);
+			section_update(&section);
 			}
 		}
 	}
@@ -162,16 +179,16 @@ gboolean on_scroll(GtkWidget *widget,GdkEvent *event,gpointer user_data)
 {
 	if(event->scroll.direction==GDK_SCROLL_UP)
 	{
-	
+	dist/=1.2;
 	}
 	else if(event->scroll.direction==GDK_SCROLL_DOWN)
 	{
+	dist*=1.2;
 	}
 gtk_widget_queue_draw(GTK_WIDGET(widget));
 return TRUE;  
 }
 
-double aoa=0.0;
 
 gboolean render(GtkGLArea *area, GdkGLContext *context)
 {
@@ -194,12 +211,12 @@ matrix_t projection={{
 	}};
 matrix_t camera=matrix_identity();
 
-matrix_t modelview=matrix_mult(matrix_translate(vector3(0.0,0.0,5.0)),matrix_mult(matrix_rotate_x(-pitch*3.1415926),matrix_rotate_y(-yaw*3.1415926)));
+matrix_t modelview=matrix_mult(matrix_translate(vector3(0.0,0.0,dist)),matrix_mult(matrix_rotate_x(-pitch*3.1415926),matrix_rotate_y(-yaw*3.1415926)));
 
 object_render(&box,projection,camera,matrix_mult(modelview,matrix_rotate_z(aoa)),&object_shader);
 glEnable(GL_BLEND);
 glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);  
-//object_render(&(section.gl_object),projection,camera,modelview,&section_shader);
+object_render(&(section.gl_object),projection,camera,modelview,&section_shader);
 object_render(&(grid.gl_object),projection,camera,modelview,&section_shader);
 glDisable(GL_BLEND);
 return TRUE;
@@ -210,10 +227,11 @@ void update_panel_solution()
 mesh_solve(&mesh,source_strengths,doublet_strengths,aoa);
 
 vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
-mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,panel_velocities);
+mesh_get_panel_velocities(&mesh,source_strengths,doublet_strengths,aoa,panel_velocities);
 	for(int i=0;i<mesh.num_panels;i++)panel_pressure[i]=scalar_plot_func(panel_velocities[i],NULL);
 free(panel_velocities);
 mesh_update_render_object(&mesh,&box,panel_pressure,NULL);
+section_update(&section);
 }
 
 gboolean on_aoa_changed(GtkRange* self,GtkScrollType* scroll,gdouble value,gpointer user_data)
@@ -224,8 +242,6 @@ aoa=M_PI*value/180.0;
 update_panel_solution();
 gtk_widget_queue_draw(GTK_WIDGET(user_data));
 }
-
-
 
 int main(int argc,char **argv)
 {
@@ -260,6 +276,7 @@ wing.segment_chord[0]=1;
 wing.segment_chord[1]=0.5;
 wing.segment_chord[2]=0.25;
 
+//mesh_init(&mesh,8,6,vertices,panels);
 wing_init_mesh(&wing,&mesh,10,10);
 
 source_strengths=calloc(mesh.num_panels,sizeof(double));

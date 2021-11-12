@@ -14,8 +14,11 @@ int num_vertices;
 int num_panels;
 vector3_t* vertices;
 panel_t* panels;
-vector3_t* panel_vertices;
-vector3_t* panel_normals;
+//Derived quantities
+double* diameters;
+double* areas;
+vector3_t* collocation_points;
+vector3_t* normals;
 }mesh_t;
 
 typedef struct
@@ -33,12 +36,10 @@ double m[4];
 
 
 int mesh_init(mesh_t* mesh,int num_vertices,int num_panels,vector3_t* vertices,panel_t* panels);
-vector3_t mesh_get_panel_vertex(mesh_t* mesh,int panel,int vertex);
-vector3_t mesh_get_panel_normal(mesh_t* mesh,int panel);
-vector3_t mesh_get_panel_collocation_point(mesh_t* mesh,int panel);
+void mesh_solve(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa);
 void mesh_get_panel_local_basis(mesh_t* mesh,int panel,panel_local_basis_t* basis);
 void mesh_get_panel_influence(panel_local_basis_t* basis,vector3_t point,double* source_influence,double* doublet_influence);
-void mesh_get_panel_velocities(mesh_t* mesh,double* source_strengths,double* doublet_strengths,vector3_t* velocities);
+void mesh_get_panel_velocities(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,vector3_t* velocities);
 
 #endif
 
