@@ -48,6 +48,7 @@ int mesh_init(mesh_t* mesh,int num_vertices,int num_panels,vector3_t* vertices,p
 void mesh_solve(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa);
 void mesh_get_panel_local_basis(mesh_t* mesh,int panel,panel_local_basis_t* basis);
 void mesh_get_panel_influence(panel_local_basis_t* basis,vector3_t point,double* source_influence,double* doublet_influence);
+void mesh_compute_potential(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,int num_points,vector3_t* points,double* potentials);
 void mesh_compute_velocity(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,int num_points,vector3_t* points,vector3_t* velocities);
 void mesh_compute_surface_velocity(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,vector3_t* velocities);
 

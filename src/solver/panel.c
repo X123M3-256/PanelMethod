@@ -135,11 +135,11 @@ void mesh_get_panel_influence(panel_local_basis_t* basis,vector3_t source_point,
 vector3_t diff=vector3_sub(source_point,basis->center);
 double r=vector3_norm(diff);
 
-	if(0&&r>3.0*basis->diameter)
+	if(r>3.0*basis->diameter)
 	{
 	//Far field approximation
-	*source_influence=-basis->area/(2*r*M_PI);
-	*doublet_influence=vector3_dot(basis->local_z,diff)*(*source_influence)/r;
+	*source_influence=-basis->area/(4*M_PI*r);
+	*doublet_influence=vector3_dot(basis->local_z,diff)*(*source_influence)/(r*r);
 	return;
 	}
 
@@ -170,12 +170,13 @@ vector3_t point=vector3(vector3_dot(b->local_x,diff),vector3_dot(b->local_y,diff
 vector3_t source=vector3(0,0,0);
 vector3_t doublet=vector3(0,0,0);
 
-	if(0&&r>3.0*b->diameter)
+	if(r>3.0*b->diameter)
 	{
 	//Far field approximation
-	double factor=b->area/(4*M_PI*r*r*sqrt(r));
+	double factor=b->area/(4*M_PI*r*r*r);
 	source=vector3_scale(point,factor);
-	doublet=vector3_scale(vector3(3*point.x*point.z,3*point.y*point.z,point.x*point.x+point.y*point.y-2*point.z*point.z),factor);	
+	factor/=r*r;
+	doublet=vector3_scale(vector3(3*point.x*point.z,3*point.y*point.z,-point.x*point.x-point.y*point.y+2*point.z*point.z),factor);
 	}
 	else
 	{
@@ -203,6 +204,7 @@ vector3_t doublet=vector3(0,0,0);
 	source=vector3_scale(source,1.0/(4.0*M_PI));
 	doublet=vector3_scale(doublet,1.0/(4.0*M_PI));
 	}
+
 *source_influence=vector3_add(vector3_add(vector3_scale(b->local_x,source.x),vector3_scale(b->local_y,source.y)),vector3_scale(b->local_z,source.z));
 *doublet_influence=vector3_add(vector3_add(vector3_scale(b->local_x,doublet.x),vector3_scale(b->local_y,doublet.y)),vector3_scale(b->local_z,doublet.z));
 }
@@ -332,14 +334,52 @@ panel_local_basis_t basis;
 free(matrix);
 }
 
+
+void mesh_compute_potential(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,int num_points,vector3_t* points,double* potentials)
+{
+panel_local_basis_t basis;
+	for(int j=0;j<num_points;j++)
+	{
+	potentials[j]=0;
+	}
+
+	for(int i=0;i<mesh->num_panels;i++)
+	{
+	mesh_get_panel_local_basis(mesh,i,&basis);
+		for(int j=0;j<num_points;j++)
+		{
+		double source,doublet;
+		mesh_get_panel_influence(&basis,points[j],&source,&doublet);
+		potentials[j]+=source*source_strengths[i]+doublet*doublet_strengths[i];
+		}
+	}
+
+	for(int i=0;i<mesh->num_wake_strips;i++)
+	{
+		for(int j=0;j<mesh->num_wake_strip_panels;j++)
+		{
+		mesh_get_panel_local_basis(mesh,mesh->num_panels+j+i*mesh->num_wake_strip_panels,&basis);
+			for(int k=0;k<num_points;k++)
+			{
+			double* source,doublet;
+			mesh_get_panel_influence(&basis,points[k],&source,&doublet);
+			potentials[k]+=doublet*doublet_strengths[mesh->num_panels+j];
+			}
+		}
+	}
+
+}
+
+
 void mesh_compute_velocities_general(mesh_t* mesh,double* source_strengths,double* doublet_strengths,double aoa,int num_points,vector3_t* points,vector3_t* velocities,int surface)
 {
 panel_local_basis_t basis;
-vector3_t freestream=vector3(-cos(aoa),sin(aoa),0);
-	for(int j=0;j<mesh->num_panels;j++)
+vector3_t freestream=vector3(0,0,0);//vector3(-cos(aoa),sin(aoa),0);
+	for(int j=0;j<num_points;j++)
 	{
 	velocities[j]=freestream;
 	}
+
 	for(int i=0;i<mesh->num_panels;i++)
 	{
 	mesh_get_panel_local_basis(mesh,i,&basis);
