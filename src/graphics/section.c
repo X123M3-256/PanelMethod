@@ -197,18 +197,23 @@ double* scalar_data=NULL;
 	if(section->flags&(SECTION_SHOW_SCALAR))
 	{
 	scalar_data=calloc(num_points,sizeof(double));
-		for(int i=0;i<num_points;i++)scalar_data[i]=section->scalar(vector_data[i],section->closure);
+	section->scalar(num_points,points,section->closure,scalar_data);
+	}
+	else if(section->flags&(SECTION_SHOW_DERIVED_SCALAR))
+	{
+	scalar_data=calloc(num_points,sizeof(double));
+		for(int i=0;i<num_points;i++)scalar_data[i]=section->derived_scalar(vector_data[i],section->closure);
 	}
 
-	if(!(section->flags&SECTION_SHOW_SCALAR))
+	if(section->flags&(SECTION_SHOW_SCALAR|SECTION_SHOW_DERIVED_SCALAR))
+	{
+	section_draw_scalar_array(section,context,scalar_data);
+	}
+	else
 	{
 	cairo_set_source_rgba(context,0.5,0.5,0.5,section->alpha);
 	cairo_rectangle(context,-0.5*section->x_range,-0.5*section->y_range,section->x_range,section->y_range);
 	cairo_fill(context);
-	}
-	else
-	{
-	section_draw_scalar_array(section,context,scalar_data);
 	}
 	if(section->flags&SECTION_SHOW_GRID)section_draw_grid(section,context);
 	if(section->flags&SECTION_SHOW_VECTOR)section_draw_vector_array(section,context,points,vector_data);
@@ -235,7 +240,7 @@ glBindBuffer(GL_ARRAY_BUFFER,section->gl_object.vbo);
 glBufferSubData(GL_ARRAY_BUFFER,0,32*sizeof(float),vertex_data);
 }
 
-int section_init(section_t* section,vector3_t center,vector3_t normal,float x_range,float y_range,float alpha,int flags,void (*vector)(int,vector3_t*,void*,vector3_t*),double (*scalar)(vector3_t,void*),void* closure)
+int section_init(section_t* section,vector3_t center,vector3_t normal,float x_range,float y_range,float alpha,int flags,void (*vector)(int,vector3_t*,void*,vector3_t*),void* scalar,void* closure)
 {
 //Set parameters
 section->center=center;
@@ -244,8 +249,9 @@ section->x_range=x_range;
 section->y_range=y_range;
 section->alpha=alpha;
 section->flags=flags;
-section->vector=vector;
-section->scalar=scalar;
+	if(flags&SECTION_SHOW_VECTOR)section->vector=vector;
+	if(flags&SECTION_SHOW_SCALAR)section->scalar=scalar;
+	else if(flags&SECTION_SHOW_DERIVED_SCALAR)section->derived_scalar=scalar;
 section->closure=closure;
 section->subdivisions=20;
 
