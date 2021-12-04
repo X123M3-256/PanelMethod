@@ -35,7 +35,7 @@ char* source=read_file(filename);
 	printf("Could not read shader file\n");
 	exit(0);
 	}
-glShaderSource(shader,1,&source,NULL);
+glShaderSource(shader,1,(const char**)(&source),NULL);
 glCompileShader(shader);
 free(source);
 char error[1024];
@@ -66,7 +66,7 @@ int render_init()
 return 0;
 }
 
-void object_init(object_t* object,int num_vertices,int num_indices,int tex_width,int tex_height,float* vertex_data,int* index_data,char* texdata)
+void object_init(object_t* object,int num_vertices,int num_indices,int tex_width,int tex_height,float* vertex_data,int* index_data,char* texdata,int flags)
 {
 glGenBuffers(1,&(object->vbo));
 glGenBuffers(1,&(object->ibo));
@@ -86,8 +86,17 @@ glBufferData(GL_ELEMENT_ARRAY_BUFFER,num_indices*sizeof(GLuint),index_data,GL_ST
 //Send texture data to graphics card
 glActiveTexture(GL_TEXTURE0);
 glBindTexture(GL_TEXTURE_2D,object->tex);
-glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
-glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+	if(flags&OBJECT_TEXTURE_REPEAT)
+	{
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
+	}
+	else
+	{
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+
+	}
 glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
 glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
 glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,tex_width,tex_height,0,GL_BGRA,GL_UNSIGNED_BYTE,texdata); 

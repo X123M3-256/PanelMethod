@@ -259,7 +259,7 @@ section->subdivisions=20;
 float vertex_data[32]={0};
 int index_data[12]={0,1,2,0,2,3,1,0,3,1,3,2};
 unsigned char tex_data[4]={0,0,0,255};
-object_init(&(section->gl_object),4,12,1,1,vertex_data,index_data,tex_data);
+object_init(&(section->gl_object),4,12,1,1,vertex_data,index_data,tex_data,0);
 
 //Set everything else
 section_update(section);

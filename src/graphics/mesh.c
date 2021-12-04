@@ -71,7 +71,7 @@ return vertices;
 
 int* mesh_get_indices(mesh_t* mesh)
 {
-int* indices=calloc(12*(mesh->num_panels+mesh->num_wake_panels),sizeof(int));
+int* indices=calloc(12*(mesh->num_panels),sizeof(int));
 
 //Write indices	
 	for(int i=0;i<mesh->num_panels;i++)
@@ -100,7 +100,7 @@ int* indices=mesh_get_indices(mesh);
 unsigned char pixels[28]={0,0,0,255, 255,0,128,255,  255,0,0,255 ,128,128,128,225, 0,0,255,255,  0,255,255,255, 255,255,255,255};
 
 //TODO check if successful
-object_init(object,mesh->num_panels+mesh->num_vertices,12*(mesh->num_panels+mesh->num_wake_panels),7,1,vertices,indices,pixels);
+object_init(object,mesh->num_panels+mesh->num_vertices,12*mesh->num_panels,7,1,vertices,indices,pixels,0);
 
 free(vertices);
 free(indices);
@@ -119,84 +119,143 @@ return 0;
 
 float* wake_get_vertices(mesh_t* mesh)
 {
-float* vertices=calloc(64*mesh->num_wake_panels,sizeof(float));
+float* vertices=calloc(16*(mesh->wake.length+1)*mesh->wake.num_vertices,sizeof(float));
 
 //Write wake vertices
-	for(int i=0;i<mesh->num_wake_panels;i++)
+	for(int i=0;i<=mesh->wake.length;i++)
+	for(int j=0;j<mesh->wake.num_vertices;j++)
 	{
-	float u[4]={0.0,1.0,1.0,0.0};
-	float v[4]={0.0,0.0,1.0,1.0};
-		for(int j=0;j<4;j++)
+	int vert_index=16*(j+i*mesh->wake.num_vertices);
+	vector3_t vertex=mesh->vertices[i==0?mesh->wake.vertices[j]:mesh->num_vertices+(i-1)*mesh->wake.num_vertices+j];
+	vertices[vert_index]=vertex.x;
+	vertices[vert_index+1]=vertex.y;
+	vertices[vert_index+2]=vertex.z;
+	vertices[vert_index+3]=0;
+	vertices[vert_index+4]=0;
+	vertices[vert_index+5]=0;
+	vertices[vert_index+6]=j;
+	vertices[vert_index+7]=0.5;
+	vertices[vert_index+8]=vertex.x;
+	vertices[vert_index+9]=vertex.y;
+	vertices[vert_index+10]=vertex.z;
+	vertices[vert_index+11]=0;
+	vertices[vert_index+12]=0;
+	vertices[vert_index+13]=0;
+	vertices[vert_index+14]=j;//u[j];
+	vertices[vert_index+15]=0.5;
+	}
+
+
+//Compute vertex normals
+	for(int i=0;i<mesh->wake.length;i++)
+	for(int j=0;j<mesh->wake.num_segments;j++)
+	{
+	panel_t panel=mesh_get_wake_panel(mesh,i,j);
+	const int tri_vertices[2][3]={{0,1,2},{2,3,0}};
+	const int vert_offsets[4]={mesh->wake.segments[j].vertices[0],mesh->wake.segments[j].vertices[1],mesh->wake.segments[j].vertices[1]+mesh->wake.num_vertices,mesh->wake.segments[j].vertices[0]+mesh->wake.num_vertices};
+		for(int tri=0;tri<2;tri++)
 		{
-		int vert_index=8*(8*i+2*j);
-		vector3_t vertex=mesh->vertices[mesh->panels[mesh->num_panels+i].vertices[j]];
-		vertices[vert_index]=vertex.x;
-		vertices[vert_index+1]=vertex.y;
-		vertices[vert_index+2]=vertex.z;
-		vertices[vert_index+3]=mesh->normals[mesh->num_panels+i].x;
-		vertices[vert_index+4]=mesh->normals[mesh->num_panels+i].y;
-		vertices[vert_index+5]=mesh->normals[mesh->num_panels+i].z;
-		vertices[vert_index+6]=0.5;//u[j];
-		vertices[vert_index+7]=0.5;//v[j];
-		vertices[vert_index+8]=vertex.x;
-		vertices[vert_index+9]=vertex.y;
-		vertices[vert_index+10]=vertex.z;
-		vertices[vert_index+11]=-mesh->normals[mesh->num_panels+i].x;
-		vertices[vert_index+12]=-mesh->normals[mesh->num_panels+i].y;
-		vertices[vert_index+13]=-mesh->normals[mesh->num_panels+i].z;
-		vertices[vert_index+14]=0.5;//u[j];
-		vertices[vert_index+15]=0.5;//v[j];
+		vector3_t normal=vector3_normalize(vector3_cross(vector3_sub(mesh->vertices[panel.vertices[tri_vertices[tri][2]]],mesh->vertices[panel.vertices[tri_vertices[tri][0]]]),vector3_sub(mesh->vertices[panel.vertices[tri_vertices[tri][1]]],mesh->vertices[panel.vertices[tri_vertices[tri][0]]])));
+			for(int k=0;k<3;k++)
+			{	
+			int vertex_index=i*mesh->wake.num_vertices+vert_offsets[tri_vertices[tri][k]];
+			vertices[16*vertex_index+3]+=normal.x;
+			vertices[16*vertex_index+4]+=normal.y;
+			vertices[16*vertex_index+5]+=normal.z;
+			}
 		}
 	}
+//Normalize vertex normals
+	for(int i=0;i<=mesh->wake.length;i++)
+	for(int j=0;j<mesh->wake.num_vertices;j++)
+	{
+	int vert_index=16*(j+i*mesh->wake.num_vertices);
+	vector3_t vertex=mesh->vertices[i==0?mesh->wake.vertices[j]:mesh->num_vertices+(i-1)*mesh->wake.num_vertices+j];
+	double norm=sqrt(vertices[vert_index+3]*vertices[vert_index+3]+vertices[vert_index+4]*vertices[vert_index+4]+vertices[vert_index+5]*vertices[vert_index+5]);
+	vertices[vert_index+3]/=norm;
+	vertices[vert_index+4]/=norm;
+	vertices[vert_index+5]/=norm;
+	vertices[vert_index+11]=-vertices[vert_index+3];
+	vertices[vert_index+12]=-vertices[vert_index+4];
+	vertices[vert_index+13]=-vertices[vert_index+5];
+	}
+
+
 return vertices;
 }
 
 int* wake_get_indices(mesh_t* mesh)
 {
-int* indices=calloc(12*mesh->num_wake_panels,sizeof(int));
-	for(int i=0;i<mesh->num_wake_panels;i++)
+int* indices=calloc(12*mesh->wake.num_segments*mesh->wake.length,sizeof(int));
+	for(int i=0;i<mesh->wake.length;i++)
+	for(int j=0;j<mesh->wake.num_segments;j++)
 	{
-	int panel_index=12*i;
-	int vertex_index=8*i;
-	indices[panel_index]=vertex_index+0;
-	indices[panel_index+1]=vertex_index+2;
-	indices[panel_index+2]=vertex_index+4;
-	indices[panel_index+3]=vertex_index+0;
-	indices[panel_index+4]=vertex_index+4;
-	indices[panel_index+5]=vertex_index+6;
-	indices[panel_index+6]=vertex_index+1;
-	indices[panel_index+7]=vertex_index+5;
-	indices[panel_index+8]=vertex_index+3;
-	indices[panel_index+9]=vertex_index+1;
-	indices[panel_index+10]=vertex_index+7;
-	indices[panel_index+11]=vertex_index+5;
+	int panel_index=12*(j+i*mesh->wake.num_segments);
+	int vertex_index=i*mesh->wake.num_vertices;
+	indices[panel_index]=2*(vertex_index+mesh->wake.segments[j].vertices[0]);
+	indices[panel_index+1]=2*(vertex_index+mesh->wake.segments[j].vertices[1]);
+	indices[panel_index+2]=2*(vertex_index+mesh->wake.segments[j].vertices[1]+mesh->wake.num_vertices);
+	indices[panel_index+3]=2*(vertex_index+mesh->wake.segments[j].vertices[0]);
+	indices[panel_index+4]=2*(vertex_index+mesh->wake.segments[j].vertices[1]+mesh->wake.num_vertices);
+	indices[panel_index+5]=2*(vertex_index+mesh->wake.segments[j].vertices[0]+mesh->wake.num_vertices);
+	
+	indices[panel_index+6]=indices[panel_index+1];
+	indices[panel_index+7]=indices[panel_index+0];
+	indices[panel_index+8]=indices[panel_index+2];
+	indices[panel_index+9]=indices[panel_index+4];
+	indices[panel_index+10]=indices[panel_index+3];
+	indices[panel_index+11]=indices[panel_index+5];
 	}
 return indices;
 }
 
 
-//TODO reduce vertex duplication/smooth shading
 int wake_init_render_object(mesh_t* mesh,object_t* object)
 {
 float* vertices=wake_get_vertices(mesh);
 int* indices=wake_get_indices(mesh);
 
 //TODO make actual texture
-unsigned char pixels[4]={255,106,77,255};
+int tex_width=32;
+unsigned char pixels[4*tex_width];
 
-object_init(object,8*mesh->num_wake_panels,12*mesh->num_wake_panels,1,1,vertices,indices,pixels);
+	for(int i=0;i<tex_width;i++)
+	{
+	pixels[4*i+0]=255;
+	pixels[4*i+1]=106;
+	pixels[4*i+2]=77;
+	pixels[4*i+3]=255;
+	}
+pixels[0]=255;
+pixels[1]=255;
+pixels[2]=255;
+pixels[3]=255;
+pixels[4*tex_width-4]=255;
+pixels[4*tex_width-3]=255;
+pixels[4*tex_width-2]=255;
+pixels[4*tex_width-1]=255;
+object_init(object,2*(mesh->wake.length+1)*mesh->wake.num_vertices,12*mesh->wake.num_segments*mesh->wake.length,tex_width,1,vertices,indices,pixels,OBJECT_TEXTURE_REPEAT);
 
 free(vertices);
 free(indices);
 }
 
-
-
 int wake_update_render_object(mesh_t* mesh,object_t* object)
 {
-float* vertex_data=wake_get_vertices(mesh);
+float* vertices=wake_get_vertices(mesh);
+int* indices=wake_get_indices(mesh);
+
+object->num_vertices=2*(mesh->wake.length+1)*mesh->wake.num_vertices;
+object->num_indices=12*mesh->wake.num_segments*mesh->wake.length;
+
 glBindBuffer(GL_ARRAY_BUFFER,object->vbo);
-glBufferSubData(GL_ARRAY_BUFFER,0,64*(mesh->num_wake_panels)*sizeof(float),vertex_data);
-free(vertex_data);
+glBufferData(GL_ARRAY_BUFFER,8*object->num_vertices*sizeof(float),vertices,GL_STATIC_DRAW);
+
+glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,object->ibo);
+glBufferData(GL_ELEMENT_ARRAY_BUFFER,object->num_indices*sizeof(GLuint),indices,GL_STATIC_DRAW);
+
+free(vertices);
+free(indices);
 return 0;
 }
+

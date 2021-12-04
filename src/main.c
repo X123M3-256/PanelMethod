@@ -1,6 +1,9 @@
 #include<stdlib.h>
 #include<stdio.h>
+#include<GL/glew.h>
 #include<GL/gl.h>
+
+
 #include<gtk/gtk.h>
 #include<math.h>
 #include "graphics/mesh.h"
@@ -8,10 +11,11 @@
 #include "solver/panel.h"
 #include "geometry/wing.h"
 
-vector3_t vertices[8]={{-1,-1,-1},{1,-1,-1},{-1,1,-1},{1,1,-1},{-1,-1,1},{1,-1,1},{-1,1,1},{1,1,1}};
+//vector3_t vertices[8]={{-1,-1,-1},{1,-1,-1},{-1,1,-1},{1,1,-1},{-1,-1,1},{1,-1,1},{-1,1,1},{1,1,1}};
 //vector3_t vertices[8]={{-0.5,-0.5,-0.5},{0.5,-0.5,-0.5},{-0.5,0.5,-0.5},{0.5,0.5,-0.5},{-0.5,-0.5,0.5},{0.5,-0.5,0.5},{-0.5,0.5,0.5},{0.5,0.5,0.5}};
-panel_t panels[6]={{{0,1,3,2}},{{4,6,7,5}},{{1,5,7,3}},{{4,0,2,6}},{{0,4,5,1}},{{2,3,7,6}}};
-mesh_t mesh={8,6,NULL,NULL,NULL,NULL,NULL,NULL};
+//vector3_t vertices[8]={{-0.25,-0.25,-0.25},{0.25,-0.25,-0.25},{-0.25,0.25,-0.25},{0.25,0.25,-0.25},{-0.25,-0.25,0.25},{0.25,-0.25,0.25},{-0.25,0.25,0.25},{0.25,0.25,0.25}};
+//panel_t panels[6]={{{0,1,3,2}},{{4,6,7,5}},{{1,5,7,3}},{{4,0,2,6}},{{0,4,5,1}},{{2,3,7,6}}};
+mesh_t mesh;//={8,6,NULL,NULL,NULL,NULL,NULL,NULL};
 
 
 shader_t object_shader;
@@ -24,20 +28,10 @@ section_t grid;
 
 wing_t wing;
 
-double aoa=0.0;
-double* source_strengths;
-double* doublet_strengths;
-double* panel_pressure;
+solver_t solver;
 
+gint update(gpointer data);
 
-typedef struct
-{
-mesh_t* mesh;
-double* source_strengths;
-double* doublet_strengths;
-}plot_data_t;
-
-plot_data_t plot_data;
 
 double scalar_plot_func(vector3_t point,void* data)
 {
@@ -45,6 +39,28 @@ return 1.0-vector3_dot(point,point);
 }
 
 void vector_plot_func(int num_points,vector3_t* source_points,void* closure,vector3_t* output)
+{
+//Transform points so that the freestream is horizontal
+double c=cos(solver.aoa);
+double s=sin(solver.aoa);
+vector3_t* points=calloc(num_points,sizeof(vector3_t));
+	for(int j=0;j<num_points;j++)
+	{
+	points[j]=vector3(c*source_points[j].x+s*source_points[j].y,-s*source_points[j].x+c*source_points[j].y,source_points[j].z);
+	}
+
+solver_compute_velocity(&solver,num_points,points,output);
+
+free(points);
+//Transform results back
+	for(int j=0;j<num_points;j++)
+	{
+	output[j]=vector3(c*output[j].x-s*output[j].y,s*output[j].x+c*output[j].y,output[j].z);
+	}
+}
+
+/*
+void scalar_plot_func(int num_points,vector3_t* source_points,void* closure,double* output)
 {
 plot_data_t* data=(plot_data_t*)closure;
 //Transform points so that the freestream is horizontal
@@ -55,21 +71,81 @@ vector3_t* points=calloc(num_points,sizeof(vector3_t));
 	{
 	points[j]=vector3(c*source_points[j].x+s*source_points[j].y,-s*source_points[j].x+c*source_points[j].y,source_points[j].z);
 	}
-
-mesh_compute_velocity(&mesh,data->source_strengths,data->doublet_strengths,aoa,num_points,points,output);
+mesh_compute_potential(&mesh,data->source_strengths,data->doublet_strengths,aoa,num_points,points,output);
 free(points);
-//Transform results back
-	for(int j=0;j<num_points;j++)
-	{
-	output[j]=vector3(c*output[j].x-s*output[j].y,s*output[j].x+c*output[j].y,output[j].z);
-	}
 }
 
+void vector_plot_func_numeric(int num_points,vector3_t* points,void* data,vector3_t* output)
+{
+panel_local_basis_t basis;
+//Create sample point arrays
+double h=0.001;
+vector3_t* top=calloc(num_points,sizeof(vector3_t));
+vector3_t* bottom=calloc(num_points,sizeof(vector3_t));
+vector3_t* left=calloc(num_points,sizeof(vector3_t));
+vector3_t* right=calloc(num_points,sizeof(vector3_t));
+vector3_t* front=calloc(num_points,sizeof(vector3_t));
+vector3_t* back=calloc(num_points,sizeof(vector3_t));
+
+double* top_output=calloc(num_points,sizeof(double));
+double* bottom_output=calloc(num_points,sizeof(double));
+double* left_output=calloc(num_points,sizeof(double));
+double* right_output=calloc(num_points,sizeof(double));
+double* front_output=calloc(num_points,sizeof(double));
+double* back_output=calloc(num_points,sizeof(double));
+
+	for(int j=0;j<num_points;j++)
+	{
+	top[j]=vector3_add(points[j],vector3(0,h,0));
+	bottom[j]=vector3_add(points[j],vector3(0,-h,0));
+	left[j]=vector3_add(points[j],vector3(-h,0,0));
+	right[j]=vector3_add(points[j],vector3(h,0,0));
+	front[j]=vector3_add(points[j],vector3(0,0,h));
+	back[j]=vector3_add(points[j],vector3(0,0,-h));
+	}
+
+scalar_plot_func(num_points,top,data,top_output);
+scalar_plot_func(num_points,bottom,data,bottom_output);
+scalar_plot_func(num_points,left,data,left_output);
+scalar_plot_func(num_points,right,data,right_output);
+scalar_plot_func(num_points,front,data,front_output);
+scalar_plot_func(num_points,back,data,back_output);
+vector_plot_func(num_points,points,data,output);
+
+	for(int j=0;j<num_points;j++)
+	{
+	//output[j]=vector3((right_output[j]-left_output[j])/(2.0*h),(top_output[j]-bottom_output[j])/(2.0*h),(front_output[j]-back_output[j])/(2.0*h));
+	//output[j]=vector3_sub(output[j],vector3((right_output[j]-left_output[j])/(2.0*h),(top_output[j]-bottom_output[j])/(2.0*h),(front_output[j]-back_output[j])/(2.0*h)));
+	//output[j].x-=1;
+	}
+
+free(top);
+free(bottom);
+free(left);
+free(right);
+free(front);
+free(back);
+free(top_output);
+free(bottom_output);
+free(left_output);
+free(right_output);
+free(front_output);
+free(back_output);
+return;
+}
+*/
 
 void on_realize (GtkGLArea *area)
 {
 gtk_gl_area_make_current (area);
   if(gtk_gl_area_get_error(area)!= NULL)return;
+
+GLenum err = glewInit();
+	if (GLEW_OK != err)
+	{
+	printf("Failed to initialize GLEW: %s\n", glewGetErrorString(err));
+	return;	
+	}
 
 glEnable(GL_DEPTH_TEST); 
 glEnable(GL_CULL_FACE);
@@ -95,15 +171,8 @@ glEnable(GL_CULL_FACE);
 mesh_init_render_object(&mesh,&mesh_object);
 wake_init_render_object(&mesh,&wake_object);
 
-
-
-mesh_update_render_object(&mesh,&mesh_object,panel_pressure,NULL);
-
-plot_data.mesh=&mesh;
-plot_data.source_strengths=source_strengths;
-plot_data.doublet_strengths=doublet_strengths;
-section_init(&grid,vector3(0,-1,0),vector3(0,1,0),4.0,4.0,0.25,SECTION_SHOW_GRID,NULL,NULL,NULL);
-section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,2.0,1.0,SECTION_SHOW_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,&plot_data);
+section_init(&grid,vector3(0,-1.0,0),vector3(0,1,0),4.0,4.0,0.25,SECTION_SHOW_GRID,NULL,NULL,NULL);
+section_init(&section,vector3(0,0,0),vector3(0,0,-1),4.0,2.0,1.0,SECTION_SHOW_DERIVED_SCALAR|SECTION_SHOW_VECTOR,vector_plot_func,scalar_plot_func,NULL);
 }
 
 int drag_active=0;
@@ -179,11 +248,16 @@ return TRUE;
 
 gboolean render(GtkGLArea *area, GdkGLContext *context)
 {
+
 glClearColor(1,1,1,0);
 glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
 GtkAllocation alloc;
 gtk_widget_get_allocation(GTK_WIDGET(area),&alloc); 
+
+
+mesh_update_render_object(&mesh,&mesh_object,solver.pressures,NULL);
+wake_update_render_object(&mesh,&wake_object);
 
 double fov=0.333333*3.1415926;
 double aspect_ratio=alloc.width/(double)alloc.height;
@@ -200,8 +274,8 @@ matrix_t camera=matrix_identity();
 
 matrix_t modelview=matrix_mult(matrix_translate(vector3(0.0,0.0,dist)),matrix_mult(matrix_rotate_x(-pitch*3.1415926),matrix_rotate_y(-yaw*3.1415926)));
 
-object_render(&mesh_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(aoa)),&object_shader);
-object_render(&wake_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(aoa)),&object_shader);
+object_render(&mesh_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(solver.aoa)),&object_shader);
+object_render(&wake_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(solver.aoa)),&object_shader);
 glEnable(GL_BLEND);
 glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);  
 object_render(&(section.gl_object),projection,camera,modelview,&section_shader);
@@ -210,37 +284,29 @@ glDisable(GL_BLEND);
 return TRUE;
 }
 
-void update_panel_solution()
-{
-clock_t time0=clock();
-mesh_solve(&mesh,source_strengths,doublet_strengths,aoa);
-clock_t time1=clock();
-
-vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
-mesh_compute_surface_velocity(&mesh,source_strengths,doublet_strengths,aoa,panel_velocities);
-	for(int i=0;i<mesh.num_panels;i++)panel_pressure[i]=scalar_plot_func(panel_velocities[i],NULL);
-free(panel_velocities);
-clock_t time2=clock();
-section_update(&section);
-clock_t time3=clock();
-mesh_update_render_object(&mesh,&mesh_object,panel_pressure,NULL);
-wake_update_render_object(&mesh,&wake_object);
-clock_t time4=clock();
-
-printf("Solve time %f\n",(double)(time1-time0)/CLOCKS_PER_SEC);
-printf("Pressure compuation time %f\n",(double)(time2-time1)/CLOCKS_PER_SEC);
-printf("Section update %f\n",(double)(time3-time2)/CLOCKS_PER_SEC);
-printf("Total update time %f\n\n",(double)(time4-time0)/CLOCKS_PER_SEC);
-}
-
 gboolean on_aoa_changed(GtkRange* self,GtkScrollType* scroll,gdouble value,gpointer user_data)
 {
-	if(value>30.0)value=30.0;
-	if(value<-30.0)value=-30.0;
-aoa=M_PI*value/180.0;
-update_panel_solution();
+//	if(value>30.0)value=30.0;
+//	if(value<-30.0)value=-30.0;
+//aoa=M_PI*value/180.0;
+//update_panel_solution();
 gtk_widget_queue_draw(GTK_WIDGET(user_data));
 }
+
+gint update(gpointer data)
+{
+solver_compute_step(&solver,0.1);
+
+//vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
+//mesh_compute_surface_velocity(&mesh,source_strengths,doublet_strengths,aoa,panel_velocities);
+//free(panel_velocities);
+//section_update(&section);
+
+	if(mesh.wake.length<mesh.wake.max_length)g_timeout_add(10,update,data);
+gtk_widget_queue_draw(GTK_WIDGET(data));
+}
+
+
 
 int main(int argc,char **argv)
 {
@@ -283,7 +349,6 @@ airfoil_update_gradients(&(wing.airfoil));
 
 
 
-
 wing.num_segments=1;
 wing.segment_offset[0]=vector3(0,0,0);
 wing.segment_offset[1]=vector3(0,0,1.5);
@@ -292,18 +357,11 @@ wing.segment_chord[0]=1;
 wing.segment_chord[1]=0.5;
 wing.segment_chord[2]=0.25;
 
-//mesh_init(&mesh,8,6,vertices,panels);
-wing_init_mesh(&wing,&mesh,10,10,10);
+//mesh_init(&mesh,8,6,vertices,panels,0,0,0,NULL,NULL,NULL);
 
-source_strengths=calloc(mesh.num_panels,sizeof(double));
-doublet_strengths=calloc(mesh.num_panels+mesh.num_wake_strip_panels,sizeof(double));
-panel_pressure=calloc(mesh.num_panels,sizeof(double));
+wing_init_mesh(&wing,&mesh,10,10,50);
 
-aoa=0;
-
-update_panel_solution();
-
-
+solver_init(&solver,&mesh,1*M_PI/18.0);
 
 
 GtkWidget* window=GTK_WIDGET(gtk_builder_get_object(builder,"window1"));
@@ -312,6 +370,10 @@ GtkWidget* draw_area=GTK_WIDGET(gtk_builder_get_object(builder,"draw_area"));
 gtk_gl_area_set_has_depth_buffer(draw_area,TRUE);
 gtk_widget_add_events(draw_area,GDK_POINTER_MOTION_MASK|GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK|GDK_SCROLL_MASK);
 gtk_builder_connect_signals(builder,NULL);
+
+//TODO don't start this until on_realize is called
+g_timeout_add(100,update,draw_area);
+
 
 gtk_widget_show_all(window);
 
