@@ -270,11 +270,21 @@ matrix_t camera=matrix_identity();
 matrix_t modelview=matrix_mult(matrix_translate(vector3(0.0,0.0,dist)),matrix_mult(matrix_rotate_x(-pitch*3.1415926),matrix_rotate_y(-yaw*3.1415926)));
 
 object_render(&mesh_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(solver.aoa)),&object_shader);
-object_render(&wake_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(solver.aoa)),&object_shader);
 glEnable(GL_BLEND);
 glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);  
 object_render(&(section.gl_object),projection,camera,modelview,&section_shader);
-object_render(&(grid.gl_object),projection,camera,modelview,&section_shader);
+glDepthMask(GL_FALSE);
+	if(pitch>0)
+	{
+	object_render(&(grid.gl_object),projection,camera,modelview,&section_shader);
+	object_render(&wake_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(solver.aoa)),&section_shader);
+	}
+	else
+	{
+	object_render(&wake_object,projection,camera,matrix_mult(modelview,matrix_rotate_z(solver.aoa)),&section_shader);
+	object_render(&(grid.gl_object),projection,camera,modelview,&section_shader);
+	}
+glDepthMask(GL_TRUE);
 glDisable(GL_BLEND);
 return TRUE;
 }
@@ -291,12 +301,6 @@ gtk_widget_queue_draw(GTK_WIDGET(user_data));
 gint update(gpointer data)
 {
 solver_compute_step(&solver,0.05);
-
-//vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
-//mesh_compute_surface_velocity(&mesh,source_strengths,doublet_strengths,aoa,panel_velocities);
-//free(panel_velocities);
-//section_update(&section);
-
 	if(mesh.wake.length<mesh.wake.max_length)g_timeout_add(10,update,data);
 gtk_widget_queue_draw(GTK_WIDGET(data));
 }

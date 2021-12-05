@@ -133,7 +133,7 @@ float* vertices=calloc(16*(mesh->wake.length+1)*mesh->wake.num_vertices,sizeof(f
 	vertices[vert_index+3]=0;
 	vertices[vert_index+4]=0;
 	vertices[vert_index+5]=0;
-	vertices[vert_index+6]=j;
+	vertices[vert_index+6]=0.5*j;
 	vertices[vert_index+7]=0.5;
 	vertices[vert_index+8]=vertex.x;
 	vertices[vert_index+9]=vertex.y;
@@ -141,7 +141,7 @@ float* vertices=calloc(16*(mesh->wake.length+1)*mesh->wake.num_vertices,sizeof(f
 	vertices[vert_index+11]=0;
 	vertices[vert_index+12]=0;
 	vertices[vert_index+13]=0;
-	vertices[vert_index+14]=j;//u[j];
+	vertices[vert_index+14]=0.5*j;//u[j];
 	vertices[vert_index+15]=0.5;
 	}
 
@@ -224,15 +224,15 @@ unsigned char pixels[4*tex_width];
 	pixels[4*i+0]=255;
 	pixels[4*i+1]=106;
 	pixels[4*i+2]=77;
-	pixels[4*i+3]=255;
+	pixels[4*i+3]=128;
 	}
-pixels[0]=255;
-pixels[1]=255;
-pixels[2]=255;
+pixels[0]=150;
+pixels[1]=30;
+pixels[2]=10;
 pixels[3]=255;
-pixels[4*tex_width-4]=255;
-pixels[4*tex_width-3]=255;
-pixels[4*tex_width-2]=255;
+pixels[4*tex_width-4]=150;
+pixels[4*tex_width-3]=30;
+pixels[4*tex_width-2]=10;
 pixels[4*tex_width-1]=255;
 object_init(object,2*(mesh->wake.length+1)*mesh->wake.num_vertices,12*mesh->wake.num_segments*mesh->wake.length,tex_width,1,vertices,indices,pixels,OBJECT_TEXTURE_REPEAT);
 
