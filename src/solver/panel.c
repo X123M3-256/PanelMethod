@@ -1,6 +1,7 @@
 #include<stdlib.h>
 #include<stdio.h>
 #include<string.h>
+#include<time.h>
 #include<math.h>
 #include<assert.h>
 #include<lapacke.h>
@@ -104,7 +105,8 @@ solver_compute_velocity(solver,solver->mesh->wake.length*solver->mesh->wake.num_
 	for(int i=0;i<solver->mesh->wake.num_vertices;i++)
 	{
 	int vertex_index=i+j*solver->mesh->wake.num_vertices;
-	solver->mesh->vertices[solver->mesh->num_vertices+vertex_index]=vector3_add(vector3_scale(velocities[vertex_index],dt),solver->mesh->vertices[solver->mesh->num_vertices+vertex_index]);	
+	double step=(1+j)*dt;
+	solver->mesh->vertices[solver->mesh->num_vertices+vertex_index]=vector3_add(vector3_scale(velocities[vertex_index],step),solver->mesh->vertices[solver->mesh->num_vertices+vertex_index]);	
 	}
 
 //Move data back
@@ -116,7 +118,6 @@ memmove(solver->mesh->wake.doublet_strengths+solver->mesh->wake.num_segments,sol
 //Add new vertex row
 	for(int i=0;i<solver->mesh->wake.num_vertices;i++)
 	{
-	//TODO work out what to do here - this fixes the location of the first vertex row
 	vector3_t velocity=solver->freestream;
 		if(solver->mesh->wake.length>1)velocity=velocities[i];
 	solver->mesh->vertices[solver->mesh->num_vertices+i]=vector3_add(vector3_scale(velocity,dt),solver->mesh->vertices[solver->mesh->wake.vertices[i]]);	
@@ -132,6 +133,7 @@ double* matrix=calloc(n*n,sizeof(double));
 double* rhs=calloc(n,sizeof(double));
 int* ipiv=calloc(n,sizeof(int));
 
+clock_t t1=clock();
 
 //Set source strength and rhs
 	for(int i=0;i<solver->mesh->num_panels;i++)
@@ -192,6 +194,8 @@ panel_local_basis_t bases[2];
 	rhs[solver->mesh->num_panels+i]=0;
 	}
 
+clock_t t2=clock();
+
 	if(LAPACKE_dgesv(LAPACK_COL_MAJOR,n,1,matrix,n,ipiv,rhs,n)!=0)
 	{
 	printf("Solution failed\n");
@@ -200,7 +204,10 @@ panel_local_basis_t bases[2];
 memcpy(solver->doublet_strengths,rhs,solver->mesh->num_panels*sizeof(double));
 memcpy(solver->mesh->wake.doublet_strengths,rhs+solver->mesh->num_panels,solver->mesh->wake.num_segments*sizeof(double));
 
+clock_t t3=clock();
 
+printf("Matrix assembly %f\n",(t2-t1)/(float)CLOCKS_PER_SEC);
+printf("Matrix solution %f\n",(t3-t2)/(float)CLOCKS_PER_SEC);
 
 
 //	for(int i=0;i<solver->mesh->wake.num_segments;i++)
@@ -221,9 +228,16 @@ solver_compute_velocities_general(solver,solver->mesh->num_panels,solver->mesh->
 
 void solver_compute_step(solver_t* solver,double dt)
 {
+clock_t t1=clock();
 solver_update_wake(solver,dt);
+clock_t t2=clock();
+printf("Wake update %f\n",(t2-t1)/(float)CLOCKS_PER_SEC);
 solver_update_solution(solver);
-solver_update_velocities(solver);
+clock_t t3=clock();
+//solver_update_velocities(solver);
+clock_t t4=clock();
+printf("Velocity update %f\n",(t4-t3)/(float)CLOCKS_PER_SEC);
+printf("Total step time %f\n",(t4-t1)/(float)CLOCKS_PER_SEC);
 }
 
 

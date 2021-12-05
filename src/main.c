@@ -11,11 +11,7 @@
 #include "solver/panel.h"
 #include "geometry/wing.h"
 
-//vector3_t vertices[8]={{-1,-1,-1},{1,-1,-1},{-1,1,-1},{1,1,-1},{-1,-1,1},{1,-1,1},{-1,1,1},{1,1,1}};
-//vector3_t vertices[8]={{-0.5,-0.5,-0.5},{0.5,-0.5,-0.5},{-0.5,0.5,-0.5},{0.5,0.5,-0.5},{-0.5,-0.5,0.5},{0.5,-0.5,0.5},{-0.5,0.5,0.5},{0.5,0.5,0.5}};
-//vector3_t vertices[8]={{-0.25,-0.25,-0.25},{0.25,-0.25,-0.25},{-0.25,0.25,-0.25},{0.25,0.25,-0.25},{-0.25,-0.25,0.25},{0.25,-0.25,0.25},{-0.25,0.25,0.25},{0.25,0.25,0.25}};
-//panel_t panels[6]={{{0,1,3,2}},{{4,6,7,5}},{{1,5,7,3}},{{4,0,2,6}},{{0,4,5,1}},{{2,3,7,6}}};
-mesh_t mesh;//={8,6,NULL,NULL,NULL,NULL,NULL,NULL};
+mesh_t mesh;
 
 
 shader_t object_shader;
@@ -248,7 +244,6 @@ return TRUE;
 
 gboolean render(GtkGLArea *area, GdkGLContext *context)
 {
-
 glClearColor(1,1,1,0);
 glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
@@ -295,7 +290,7 @@ gtk_widget_queue_draw(GTK_WIDGET(user_data));
 
 gint update(gpointer data)
 {
-solver_compute_step(&solver,0.1);
+solver_compute_step(&solver,0.05);
 
 //vector3_t* panel_velocities=calloc(mesh.num_panels,sizeof(vector3_t));
 //mesh_compute_surface_velocity(&mesh,source_strengths,doublet_strengths,aoa,panel_velocities);
@@ -359,7 +354,7 @@ wing.segment_chord[2]=0.25;
 
 //mesh_init(&mesh,8,6,vertices,panels,0,0,0,NULL,NULL,NULL);
 
-wing_init_mesh(&wing,&mesh,10,10,50);
+wing_init_mesh(&wing,&mesh,10,20,20);
 
 solver_init(&solver,&mesh,1*M_PI/18.0);
 
